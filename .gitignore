@@ -1,0 +1,16 @@
+# Local research artifacts (re-fetchable; not part of the app)
+.reference/
+
+# Editor / tooling scratch
+.commandcode/
+
+# Android / Gradle
+*.iml
+.gradle/
+local.properties
+.idea/
+.DS_Store
+build/
+captures/
+.externalNativeBuild/
+.cxx/
