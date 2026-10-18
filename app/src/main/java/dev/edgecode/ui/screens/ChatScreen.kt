@@ -43,7 +43,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import dev.edgecode.core.design.EdgeIcons
@@ -132,6 +134,12 @@ fun ChatScreen(
     var showAgents by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
 
+    // Measured, not assumed: the composer grows with the prompt, and the
+    // transcript has to reserve exactly as much room as it currently occupies
+    // so the last turn is never trapped behind it.
+    var composerHeight by remember { mutableStateOf(0) }
+    val composerHeightDp = with(LocalDensity.current) { composerHeight.toDp() }
+
     val session = remember(sessions, sessionId) { sessions.firstOrNull { it.id == sessionId } }
     val pending = remember(permissions, sessionId) {
         permissions.filter { it.sessionId == sessionId }
@@ -197,7 +205,10 @@ fun ChatScreen(
     val contextLimit = servingModel?.contextLimit ?: 0
     val contextPercent = if (contextLimit > 0) contextUsed.toFloat() / contextLimit else 0f
 
-    Column(
+    // One Box, no bands. The transcript fills the whole surface and both bars
+    // float over it, so the conversation runs edge to edge and stays visible in
+    // the gaps beside the controls and around the composer.
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(scheme.background)
@@ -205,7 +216,7 @@ fun ChatScreen(
             // transcript and the composer move together above the keyboard.
             .bottomSystemInset(),
     ) {
-        Box(modifier = Modifier.weight(1f).fillMaxWidth().testTag(TranscriptTestTag)) {
+        Box(modifier = Modifier.fillMaxSize().testTag(TranscriptTestTag)) {
             when {
                 state.loading -> InlineProgress(
                     label = "Loading session",
@@ -239,7 +250,7 @@ fun ChatScreen(
                     // trapped underneath it.
                     contentPadding = PaddingValues(
                         top = HeaderHeight,
-                        bottom = Space.md,
+                        bottom = composerHeightDp + Space.md,
                     ),
                 ) {
                     items(
@@ -259,14 +270,14 @@ fun ChatScreen(
                 }
             }
 
-            // Floating header. Its background is the canvas colour, so scrolled
-            // content disappears into it rather than sliding under a separate
-            // band, and it is the only owner of the top inset.
+            // Floating header. It draws nothing behind itself, so the chat body
+            // shows between the controls; the controls keep their own fill and
+            // stay legible over whatever passes beneath them. It is the only
+            // owner of the top inset.
             Row(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .background(scheme.background)
                     .topSystemInset()
                     .padding(horizontal = Space.md, vertical = Space.sm),
                 verticalAlignment = Alignment.CenterVertically,
@@ -275,8 +286,6 @@ fun ChatScreen(
                     icon = EdgeIcons.Back,
                     contentDescription = "Back to sessions",
                     onClick = { viewModel.back() },
-                    fill = Color.Transparent,
-                    tint = scheme.onSurface,
                 )
 
                 Spacer(Modifier.weight(1f))
@@ -290,17 +299,13 @@ fun ChatScreen(
                     icon = EdgeIcons.Plus,
                     contentDescription = "New session",
                     onClick = { viewModel.back() },
-                    fill = Color.Transparent,
-                    tint = scheme.onSurface,
                 )
-                Spacer(Modifier.width(Space.xs))
+                Spacer(Modifier.width(Space.sm))
                 Box {
                     CircleButton(
                         icon = EdgeIcons.More,
                         contentDescription = "Session menu",
                         onClick = { menuOpen = true },
-                        fill = Color.Transparent,
-                        tint = scheme.onSurface,
                     )
                     SessionMenu(
                         expanded = menuOpen,
@@ -323,18 +328,27 @@ fun ChatScreen(
                 onClick = { scope.launch { listState.scrollToEnd(messages.lastIndex) } },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = Space.lg, bottom = Space.md),
+                    .padding(end = Space.lg, bottom = composerHeightDp + Space.md),
             )
         }
 
+        // The composer floats over the transcript. It reserves its measured
+        // height in the list's bottom padding, so the last turn can always be
+        // scrolled clear of it while everything else passes underneath.
         if (pending.isNotEmpty()) {
-            pending.take(1).forEach { request ->
-                PermissionCard(
-                    request = request,
-                    onDecide = { decision, remember ->
-                        viewModel.respondPermission(request, decision, remember)
-                    },
-                )
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = composerHeightDp),
+            ) {
+                pending.take(1).forEach { request ->
+                    PermissionCard(
+                        request = request,
+                        onDecide = { decision, remember ->
+                            viewModel.respondPermission(request, decision, remember)
+                        },
+                    )
+                }
             }
         }
 
@@ -370,6 +384,9 @@ fun ChatScreen(
                 }
             },
             sendOnEnter = settings.sendOnEnter,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .onSizeChanged { composerHeight = it.height },
         )
     }
 
