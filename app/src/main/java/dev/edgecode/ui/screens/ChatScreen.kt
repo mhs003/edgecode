@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -274,6 +275,8 @@ fun ChatScreen(
                     icon = EdgeIcons.Back,
                     contentDescription = "Back to sessions",
                     onClick = { viewModel.back() },
+                    fill = Color.Transparent,
+                    tint = scheme.onSurface,
                 )
 
                 Spacer(Modifier.weight(1f))
@@ -287,13 +290,17 @@ fun ChatScreen(
                     icon = EdgeIcons.Plus,
                     contentDescription = "New session",
                     onClick = { viewModel.back() },
+                    fill = Color.Transparent,
+                    tint = scheme.onSurface,
                 )
-                Spacer(Modifier.width(Space.sm))
+                Spacer(Modifier.width(Space.xs))
                 Box {
                     CircleButton(
                         icon = EdgeIcons.More,
                         contentDescription = "Session menu",
                         onClick = { menuOpen = true },
+                        fill = Color.Transparent,
+                        tint = scheme.onSurface,
                     )
                     SessionMenu(
                         expanded = menuOpen,

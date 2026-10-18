@@ -131,15 +131,7 @@ fun Composer(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(Radius.xl))
-                .background(scheme.surfaceContainer)
-                // A focus ring only. The fill already reads as a distinct
-                // floating surface, so a resting border just draws a box
-                // around a box and dulls the curve.
-                .border(
-                    width = Stroke.hairline,
-                    color = if (focused) scheme.primary else Color.Transparent,
-                    shape = RoundedCornerShape(Radius.xl),
-                ),
+                .background(scheme.surfaceContainer),
         ) {
             BasicTextField(
                 value = value,
@@ -151,6 +143,10 @@ fun Composer(
                     capitalization = KeyboardCapitalization.Sentences,
                     imeAction = ImeAction.Default,
                 ),
+                // Grows with the prompt up to a fixed number of lines, then
+                // scrolls inside the pill. Without a cap a pasted block or a
+                // run of blank lines pushes the composer over the transcript.
+                maxLines = Size.composerMaxLines,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = Space.lg, end = Space.lg, top = Space.lg, bottom = Space.md)
@@ -206,13 +202,11 @@ fun Composer(
                         fill = scheme.surfaceContainerHigh,
                     )
                     ComposerChip(
-                        icon = EdgeIcons.Bolt,
                         label = modelLabel,
                         onClick = onModelClick,
                         modifier = Modifier.weight(1f, fill = false),
                     )
                     ComposerChip(
-                        icon = EdgeIcons.Sparkle,
                         label = agentLabel,
                         onClick = onAgentClick,
                     )
@@ -243,37 +237,34 @@ fun Composer(
     }
 }
 
+/**
+ * Text-only pill, matching how current clients present the active model. The
+ * two chips share a row with the attach and send controls, so an icon in each
+ * cost 48dp that the model name needed more than the decoration did.
+ */
 @Composable
 private fun ComposerChip(
-    icon: ImageVector,
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
-    Row(
+    Box(
         modifier = modifier
             .heightIn(min = Size.controlSm)
             .clip(RoundedCornerShape(Radius.full))
             .background(scheme.surfaceContainerHigh)
             .tappable(onClick = onClick)
-            .padding(horizontal = Space.sm),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Space.xs),
+            .padding(horizontal = Space.md),
+        contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = scheme.onSurfaceVariant,
-            modifier = Modifier.size(Size.iconSm),
-        )
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
             color = scheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 124.dp),
+            modifier = Modifier.widthIn(max = 132.dp),
         )
     }
 }

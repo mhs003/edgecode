@@ -64,7 +64,15 @@ object Size {
     val iconXl: Dp = 32.dp
     val statusDot: Dp = 7.dp
     val attachment: Dp = 72.dp
-    val composerMaxLines: Int = 8
+
+    /**
+     * How tall the composer grows before it starts scrolling internally. Six
+     * lines of the body style keeps the pill under about a third of the window
+     * with the keyboard open.
+     */
+    val composerMaxLines: Int = 6
+
+    val composerTextMin: Dp = 26.dp
 
     /**
      * Circular control in the floating transcript header. Sized so a full row of
