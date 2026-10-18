@@ -13,10 +13,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -195,6 +200,11 @@ fun ChatScreen(
         if (messages.isNotEmpty()) listState.scrollToEnd(messages.lastIndex)
     }
 
+    // The header floats, so the list has to reserve its full height — including
+    // the status-bar inset it also absorbs. Reserving only the control row left
+    // the first turn underneath the buttons at the top of the transcript.
+    val headerInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
     // Context pressure belongs to the model that actually served the session.
     // Dividing by the currently selected model reported 146% for a GPT-6
     // session, because it was being divided by Opus's 200k window.
@@ -249,7 +259,7 @@ fun ChatScreen(
                     // Clears the floating header so the first turn is never
                     // trapped underneath it.
                     contentPadding = PaddingValues(
-                        top = HeaderHeight,
+                        top = headerInset + HeaderHeight,
                         bottom = composerHeightDp + Space.md,
                     ),
                 ) {
@@ -269,6 +279,24 @@ fun ChatScreen(
                     }
                 }
             }
+
+            // Fade behind the header: opaque at the top edge, dissolving to
+            // nothing where the transcript begins. Text passing under the
+            // controls fades out rather than colliding with them.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .height(headerInset + HeaderHeight + Space.lg)
+                    .background(
+                        Brush.verticalGradient(
+                            0.00f to scheme.background,
+                            0.55f to scheme.background.copy(alpha = 0.88f),
+                            0.80f to scheme.background.copy(alpha = 0.45f),
+                            1.00f to Color.Transparent,
+                        ),
+                    ),
+            )
 
             // Floating header. It draws nothing behind itself, so the chat body
             // shows between the controls; the controls keep their own fill and
@@ -331,6 +359,24 @@ fun ChatScreen(
                     .padding(end = Space.lg, bottom = composerHeightDp + Space.md),
             )
         }
+
+        // Fade behind the composer, mirrored: nothing where the transcript is,
+        // solid canvas at the window edge. The pill itself keeps its own fill
+        // and stays fully transparent around it.
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(composerHeightDp + Space.lg)
+                .background(
+                    Brush.verticalGradient(
+                        0.00f to Color.Transparent,
+                        0.22f to scheme.background.copy(alpha = 0.45f),
+                        0.45f to scheme.background.copy(alpha = 0.88f),
+                        1.00f to scheme.background,
+                    ),
+                ),
+        )
 
         // The composer floats over the transcript. It reserves its measured
         // height in the list's bottom padding, so the last turn can always be
