@@ -22,7 +22,11 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 is what makes the release build actually fast: it removes the
+            // debug instrumentation and shrinks the Compose call graph. Without
+            // it the "release" build performs like debug.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
