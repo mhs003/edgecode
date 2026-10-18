@@ -341,3 +341,219 @@ Sources: [OpenCode server docs](https://opencode.ai/docs/server/) ·
 [protocol/openapi.json](https://github.com/anomalyco/opencode/blob/dev/packages/protocol/openapi.json) ·
 [ChatGPT Android UI reference](https://gummble.com/apps/chatgpt-android) ·
 [opencode-ui desktop client](https://github.com/marmotz-dev/opencode-ui)
+
+---
+
+## 12. Network implementation plan
+
+Status: **spec verified against a live v1.19.3 server** (`GET /doc`, 162 paths).
+Every shape below was read off that server, not the SDK types and not guessed.
+
+### 12.1 No new dependencies
+
+Three constraints drive this:
+
+- `AGENTS.md` forbids a DI framework and a markdown library, and the codebase
+  hand-rolls where a dependency would be less honest.
+- `ChatReducer`, `Markdown`, `Diff` and `Format` must stay JVM-testable, so the
+  wire format cannot land in Android-only code.
+- `org.json` is Android-only and *stubbed to throw* in JVM unit tests, so using
+  it would push the mapping layer out of test reach. OkHttp/Retrofit/kotlinx
+  .serialization each add an artifact to fetch and dex on a phone.
+
+So: a small hand-written JSON parser in `core/util/Json.kt`, and
+`HttpURLConnection` for transport. Both are dependency-free, and the parser is
+pure so the mappers that consume it are unit-testable exactly like `ChatReducer`.
+
+### 12.2 Layers
+
+```
+ui/            reads core/model only
+data/          repository, stores, OpenCodeApi seam
+data/net/      transport + mappers        <- new
+core/util/     Json                      <- new, pure
+```
+
+Three new pure-by-design units:
+
+| File | Responsibility | Testable |
+|---|---|---|
+| `core/util/Json.kt` | parse/serialise JSON to a `JsonValue` tree | JVM |
+| `data/net/Sse.kt` | reassemble SSE frames from byte chunks | JVM |
+| `data/net/OpenCodeWire.kt` | `JsonValue` ⇄ `core/model` | JVM |
+
+And two Android-bound units, kept thin so there is little to test:
+
+| File | Responsibility |
+|---|---|
+| `data/net/Transport.kt` | interface + `HttpURLConnection` impl, streaming body callback |
+| `data/net/HttpOpenCodeApi.kt` | `OpenCodeApi` over the transport |
+
+### 12.3 Transport seam
+
+```kotlin
+interface Transport {
+    suspend fun request(
+        method: String,
+        path: String,
+        query: Map<String, String> = emptyMap(),
+        body: String? = null,
+    ): HttpResponse
+
+    /** Streams SSE frames until the caller cancels. */
+    fun stream(path: String): Flow<String>   // one emission per `data:` payload
+
+    fun close()
+}
+
+data class HttpResponse(val code: Int, val body: String)
+```
+
+`HttpURLConnection` has no async API, so `request` runs on `Dispatchers.IO` and
+`stream` reads on a `flow {}` with `flowOn(Dispatchers.IO)`. A non-2xx raises
+`OpenCodeHttpException(code, message)` carrying the server's error body, so the
+Connect screen can distinguish 401 from an unreachable host.
+
+### 12.4 Wire mapping rules
+
+Read from the live server. The parts that are easy to get wrong:
+
+- **Message envelope.** `GET /session/{id}/message` returns
+  `[{ info: UserMessage|AssistantMessage, parts: [...] }]` — the message and its
+  parts are siblings in one object, not nested. Discriminate on `info.role`.
+- **Parts are discriminated on `type`**, not `role`: `text`, `reasoning`, `file`,
+  `tool`, `step-start`, `step-finish`, `snapshot`, `patch`, `agent`, `retry`,
+  `compaction`, `subtask`. Only `text`, `reasoning`, `tool`, `file` and
+  `step-*` map to a rendered `Part`. The rest map to `Part.Note` so an unknown
+  part degrades to a visible line rather than vanishing.
+- **Tool state** is a union on `state.status`: `pending` (no time), `running`
+  (`time.start`), `completed` (`time.start`+`end`, `output`), `error`
+  (`time.start`+`end`, `error`). `durationMs` derives from that pair.
+  `ToolState.input`/`output` are already-serialised text.
+- **Timestamps are epoch millis** in `time.created` / `time.updated` /
+  `time.completed`. `createdAt`/`updatedAt` on the model are millis.
+- **Tokens** live at `tokens.input|output|reasoning|cache.read|cache.write` and
+  map straight onto `TokenUsage`.
+- **Model refs** appear in two shapes: `{id, providerID}` on a session and
+  `{providerID, modelID}` on a message. Both map to `ModelRef(providerId,
+  modelId, variant)`. Getting this backwards silently breaks the model chip.
+- **`disabled`/`hidden` filtering**: agents with `hidden = true` are dropped
+  from the picker; `mode = subagent` are not primary.
+- **`Part.Text` carries `time.end`** — absent means still streaming. This is how
+  `streaming` is decided on a REST fetch, without relying on the event stream.
+- **Errors** are a union on `error.name`; only `data.message` is surfaced.
+
+### 12.5 Streaming
+
+`GET /event` emits:
+
+```
+data: {"id":"evt_…","type":"server.connected","properties":{}}
+```
+
+The envelope is `{id, type, properties}` — the payload is under `properties`,
+not `data`. Event types map to `ServerEvent`:
+
+| Event | → |
+|---|---|
+| `server.connected` | `Connected(version)` |
+| `session.created` / `session.updated` | `SessionUpserted` |
+| `session.deleted` | `SessionRemoved` |
+| `message.updated` | `MessageUpserted` (`properties.info`) |
+| `message.part.updated` | `PartUpserted` (`properties.part`) |
+| `message.removed` | `MessageRemoved` |
+| `message.part.delta` | folded into `PartUpserted` as a text delta |
+| `permission.asked` / `permission.replied` | `PermissionRequested` / `PermissionResolved` |
+| `session.idle` | `SessionIdle` |
+| `session.error` | `SessionFailed` |
+
+Unmapped types are dropped rather than logged as errors — the stream is
+documented as lossy and carries a great deal we do not render.
+
+`session.idle` is the **only** thing that ends a turn. Every reconnect triggers a
+REST reconcile, per the standing invariant that the stream is never the truth.
+
+### 12.6 Sending a prompt
+
+`POST /session/{id}/prompt_async` — returns immediately, replies arrive over SSE.
+This is the right call for a chat client; `POST /message` blocks until the whole
+turn completes and would make the UI wait for an entire response before showing
+anything.
+
+Body: `{ parts: [TextPartInput], model: {providerID, modelID}, agent, messageID? }`.
+A client-generated `messageID` lets us reconcile the optimistic local bubble
+with the server's copy.
+
+**Attachments** ride along as `FilePartInput { type:"file", mime, url, filename }`
+where `url` is a `data:` URI. `core/util/Images.kt` already produces the base64
+payload; `Attachment.uri` is what gets resolved.
+
+### 12.7 Connection manager
+
+New store, mirroring `SettingsStore`'s SharedPreferences pattern exactly:
+
+```kotlin
+data class SavedConnection(
+    val id: String,
+    val name: String,
+    val url: String,
+    val username: String? = null,
+    val lastUsedAt: Long = 0L,
+    val lastStatus: String? = null,   // for showing "unreachable" in the list
+)
+
+class ConnectionsStore(context: Context) {
+    val state: StateFlow<List<SavedConnection>>
+    fun save(connection: SavedConnection)
+    fun remove(id: String)
+    fun markUsed(id: String, at: Long = System.currentTimeMillis())
+    fun touch(id: String, status: String?)
+    fun find(url: String, username: String?): SavedConnection?
+}
+```
+
+Serialised as one JSON string under a single key, using the new `Json` encoder —
+no `Set<String>` splitting, which would break on URLs containing the separator.
+
+**Credentials are not persisted.** `SettingsStore` already documents this policy
+and `ServerProfile.password` is memory-only. A saved connection stores url,
+username and a display name; the password is re-asked on connect when the server
+demands one. Passwords go in the in-memory only map keyed by connection id, so
+reconnecting inside a session does not re-prompt.
+
+### 12.8 Connect screen
+
+- Saved connections list first — name, url, relative "last used", and a status
+  dot. Tapping connects; long-press or the row's overflow removes.
+- "New connection" opens the form: URL, optional username, optional password,
+  and a **"Save for later"** toggle (default on) — the user asked to be asked.
+- `normalizeUrl` stays; `4096` is the default port when none is given.
+- Failures render in place with the server's own message.
+
+### 12.9 Testing
+
+Real captured payloads become fixtures, so the mappers are tested against the
+server's actual output rather than my reading of the spec.
+
+| Test | Covers |
+|---|---|
+| `JsonTest` | escapes, unicode, nesting, numbers, malformed input, encode round-trip |
+| `SseTest` | frame splitting across chunk boundaries, multi-line `data:`, comments, CRLF |
+| `OpenCodeWireTest` | every part variant, both model-ref shapes, tool states, errors, a full real message list |
+| `ConnectionsStoreTest` | add/remove/touch, round-trip through JSON, URL round-trip |
+| `AppRepositoryTest` | existing, extended for the new factory signature |
+
+Persistence is verified by round-tripping a real server response through the
+parser and back, not by asserting on a hand-written object.
+
+### 12.10 Order of work
+
+1. `Json` + tests
+2. `Sse` + tests
+3. `OpenCodeWire` + tests
+4. `Transport` + `HttpOpenCodeApi`
+5. `ConnectionsStore` + tests
+6. Repository wiring (factory takes the profile)
+7. Connect screen
+8. On-device verification against the live server
+9. Documentation
