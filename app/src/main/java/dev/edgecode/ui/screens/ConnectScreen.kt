@@ -10,10 +10,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,12 +39,15 @@ import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
+import dev.edgecode.core.design.Stroke
 import dev.edgecode.core.design.components.EdgeButton
 import dev.edgecode.core.design.components.EdgeSecondaryButton
 import dev.edgecode.core.design.components.EdgeTextField
 import dev.edgecode.core.design.components.ErrorNotice
 import dev.edgecode.core.design.components.TextAction
+import dev.edgecode.core.design.components.bottomSystemInset
 import dev.edgecode.core.design.components.tappable
+import dev.edgecode.core.design.components.topSystemInset
 import dev.edgecode.core.model.ConnectionState
 import dev.edgecode.ui.AppViewModel
 
@@ -81,8 +82,8 @@ fun ConnectScreen(
         modifier = modifier
             .fillMaxSize()
             .background(scheme.background)
-            .systemBarsPadding()
-            .imePadding()
+            .topSystemInset()
+            .bottomSystemInset()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = Space.xl),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -203,7 +204,7 @@ fun ConnectScreen(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(1.dp)
+                        .height(Stroke.hairline)
                         .background(scheme.outlineVariant),
                 )
                 Text(
@@ -215,7 +216,7 @@ fun ConnectScreen(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(1.dp)
+                        .height(Stroke.hairline)
                         .background(scheme.outlineVariant),
                 )
             }
@@ -287,7 +288,7 @@ private fun RememberRow(checked: Boolean, onToggle: () -> Unit, enabled: Boolean
 }
 
 private fun Modifier.borderBox(color: Color): Modifier =
-    border(1.5.dp, color, RoundedCornerShape(Radius.xs))
+    border(Stroke.thin, color, RoundedCornerShape(Radius.xs))
 
 /** Product mark: a terminal prompt in a rounded tile. */
 @Composable

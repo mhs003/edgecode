@@ -25,6 +25,7 @@ import dev.edgecode.core.design.EdgeText
 import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
+import dev.edgecode.core.design.Stroke
 import dev.edgecode.core.design.components.TextAction
 import dev.edgecode.core.design.components.tappable
 import dev.edgecode.core.model.PermissionDecision
@@ -53,7 +54,7 @@ fun PermissionCard(
             .padding(horizontal = Space.md, vertical = Space.sm)
             .clip(MaterialTheme.shapes.medium)
             .background(scheme.surfaceContainer)
-            .border(1.dp, scheme.outlineVariant, MaterialTheme.shapes.medium)
+            .border(Stroke.hairline, scheme.outlineVariant, MaterialTheme.shapes.medium)
             .padding(Space.md),
         verticalArrangement = Arrangement.spacedBy(Space.sm),
     ) {

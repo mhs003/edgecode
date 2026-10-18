@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Uses a platform theme so no Material Components dependency is needed;
-         Compose Material 3 themes the UI itself. -->
-    <style name="Theme.EdgeCode" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+      A platform theme so no Material Components dependency is needed; Compose
+      Material 3 themes the UI itself. The parent is the dark platform theme
+      because this app defaults to dark, and the window background is overridden
+      at runtime from the saved theme so a light-theme start does not flash dark.
+    -->
+    <style name="Theme.EdgeCode" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_background_dark</item>
+    </style>
 </resources>

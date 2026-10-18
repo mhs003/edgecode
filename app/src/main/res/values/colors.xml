@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The window background is only visible between the activity being created
+      and Compose drawing its first frame. These values mirror
+      Theme.kt's DarkBackground / LightBackground so a cold start does not flash
+      the opposite theme before the UI appears.
+    -->
+    <color name="window_background_dark">#FF0F1216</color>
+    <color name="window_background_light">#FFFAFBFC</color>
+</resources>

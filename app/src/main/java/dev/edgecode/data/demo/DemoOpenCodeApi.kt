@@ -78,10 +78,33 @@ class DemoOpenCodeApi(
 
     private fun scaled(ms: Long) = (ms / speed).toLong().coerceAtLeast(1L)
 
+    /**
+     * Simulated round-trip times.
+     *
+     * Tuned to a server on the local network rather than to a WAN, because that
+     * is how OpenCode is actually deployed. These values are the floor on how
+     * long the demo takes to respond, so they are deliberately small: an earlier
+     * set summed to well over a second before the session list could appear.
+     */
+    private object Latency {
+        const val Health = 220L
+        const val Sessions = 60L
+        const val Projects = 35L
+        const val Messages = 80L
+        const val CreateSession = 90L
+        const val RenameSession = 50L
+        const val DeleteSession = 60L
+        const val Models = 45L
+        const val Agents = 30L
+        const val Commands = 25L
+        const val Providers = 30L
+        const val FirstToken = 260L
+    }
+
     // --- Connection --------------------------------------------------------
 
     override suspend fun health(): ServerInfo {
-        delay(scaled(650))
+        delay(scaled(Latency.Health))
         return ServerInfo(
             version = DemoContent.SERVER_VERSION,
             healthy = true,
@@ -92,17 +115,17 @@ class DemoOpenCodeApi(
     // --- Projects and sessions --------------------------------------------
 
     override suspend fun projects(): List<ProjectRef> {
-        delay(scaled(120))
+        delay(scaled(Latency.Projects))
         return DemoContent.projects
     }
 
     override suspend fun sessions(): List<SessionSummary> {
-        delay(scaled(180))
+        delay(scaled(Latency.Sessions))
         return sessions.values.sortedByDescending { it.updatedAt }
     }
 
     override suspend fun createSession(directory: String?, title: String?): SessionSummary {
-        delay(scaled(220))
+        delay(scaled(Latency.CreateSession))
         val now = System.currentTimeMillis()
         val session = SessionSummary(
             id = nextId("ses"),
@@ -121,21 +144,21 @@ class DemoOpenCodeApi(
     }
 
     override suspend fun renameSession(sessionId: String, title: String) {
-        delay(scaled(100))
+        delay(scaled(Latency.RenameSession))
         val updated = sessions[sessionId]?.copy(title = title) ?: return
         sessions[sessionId] = updated
         emit(ServerEvent.SessionUpserted(updated))
     }
 
     override suspend fun deleteSession(sessionId: String) {
-        delay(scaled(120))
+        delay(scaled(Latency.DeleteSession))
         sessions.remove(sessionId)
         transcripts.remove(sessionId)
         emit(ServerEvent.SessionRemoved(sessionId))
     }
 
     override suspend fun messages(sessionId: String): List<ChatMessage> {
-        delay(scaled(200))
+        delay(scaled(Latency.Messages))
         return transcripts.getOrPut(sessionId) {
             DemoContent.transcript(sessionId, System.currentTimeMillis()).toMutableList()
         }.toList()
@@ -248,22 +271,22 @@ class DemoOpenCodeApi(
     // --- Catalogue ---------------------------------------------------------
 
     override suspend fun commands(): List<SlashCommand> {
-        delay(scaled(80))
+        delay(scaled(Latency.Commands))
         return DemoContent.commands
     }
 
     override suspend fun agents(): List<AgentInfo> {
-        delay(scaled(80))
+        delay(scaled(Latency.Agents))
         return DemoContent.agents
     }
 
     override suspend fun providers(): List<ProviderInfo> {
-        delay(scaled(90))
+        delay(scaled(Latency.Providers))
         return DemoContent.providers
     }
 
     override suspend fun models(): List<ModelInfo> {
-        delay(scaled(110))
+        delay(scaled(Latency.Models))
         return DemoContent.models
     }
 
@@ -291,7 +314,7 @@ class DemoOpenCodeApi(
         transcripts.getOrPut(sessionId) { mutableListOf() }.add(assistant)
         emit(ServerEvent.MessageUpserted(sessionId, assistant))
 
-        delay(scaled(420))
+        delay(scaled(Latency.FirstToken))
 
         val script = DemoContent.replyScript(prompt, sessionId, agentId)
 

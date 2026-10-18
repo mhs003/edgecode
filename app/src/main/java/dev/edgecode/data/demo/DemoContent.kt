@@ -149,7 +149,7 @@ object DemoContent {
             createdAt = now - 6 * HOUR,
             updatedAt = now - 48 * MIN,
             cost = 1.84,
-            tokens = TokenUsage(input = 184_220, output = 12_930, cacheRead = 96_100),
+            tokens = TokenUsage(input = 184_220, output = 12_930, cacheRead = 147_000),
             additions = 214, deletions = 18, changedFiles = 9,
             modelLabel = "GPT-6",
         ),

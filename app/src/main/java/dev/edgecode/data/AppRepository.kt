@@ -17,6 +17,8 @@ import dev.edgecode.core.model.SlashCommand
 import dev.edgecode.data.demo.DemoOpenCodeApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -63,7 +65,15 @@ data class Catalog(
  * (re)connection is followed by a REST reconcile — the stream accelerates the
  * UI, it never defines the truth.
  */
-class AppRepository(private val scope: CoroutineScope) {
+class AppRepository(
+    private val scope: CoroutineScope,
+    /**
+     * How the API client is built for a connection. Injectable so the timing
+     * behaviour of the connect path can be tested on the JVM without a device,
+     * and so the real v1 client can be dropped in without touching this class.
+     */
+    private val apiFactory: (CoroutineScope) -> OpenCodeApi = { DemoOpenCodeApi(it) },
+) {
 
     private var api: OpenCodeApi? = null
     private var eventJob: Job? = null
@@ -82,15 +92,27 @@ class AppRepository(private val scope: CoroutineScope) {
 
     private val chats = mutableMapOf<String, MutableStateFlow<SessionChatState>>()
 
+    /**
+     * Cached read-only views of [chats].
+     *
+     * `asStateFlow()` allocates a new wrapper on every call, so handing out a
+     * fresh instance from composition restarted the collector coroutine on every
+     * recomposition. Callers get one stable flow per session instead.
+     */
+    private val chatViews = mutableMapOf<String, StateFlow<SessionChatState>>()
+
     fun chat(sessionId: String): StateFlow<SessionChatState> =
-        chats.getOrPut(sessionId) { MutableStateFlow(SessionChatState(sessionId)) }.asStateFlow()
+        chatViews.getOrPut(sessionId) {
+            chats.getOrPut(sessionId) { MutableStateFlow(SessionChatState(sessionId)) }
+                .asStateFlow()
+        }
 
     // --- Connection --------------------------------------------------------
 
     suspend fun connect(profile: ServerProfile) {
         disconnect()
         _connection.value = ConnectionState.Connecting(profile)
-        val client = DemoOpenCodeApi(scope)
+        val client = apiFactory(scope)
         api = client
         try {
             val info = client.health()
@@ -131,6 +153,7 @@ class AppRepository(private val scope: CoroutineScope) {
         _permissions.value = emptyList()
         _catalog.value = Catalog()
         chats.clear()
+        chatViews.clear()
     }
 
     private fun startEventStream(client: OpenCodeApi) {
@@ -158,13 +181,24 @@ class AppRepository(private val scope: CoroutineScope) {
         }
     }
 
-    private suspend fun loadCatalog(client: OpenCodeApi) {
+    /**
+     * The catalogue fetches are independent, so they run concurrently. Doing
+     * them one after another summed five round-trips into the time the user
+     * waited before the session list appeared.
+     */
+    private suspend fun loadCatalog(client: OpenCodeApi) = coroutineScope {
+        val models = async { runCatching { client.models() }.getOrDefault(emptyList()) }
+        val agents = async { runCatching { client.agents() }.getOrDefault(emptyList()) }
+        val commands = async { runCatching { client.commands() }.getOrDefault(emptyList()) }
+        val providers = async { runCatching { client.providers() }.getOrDefault(emptyList()) }
+        val projects = async { runCatching { client.projects() }.getOrDefault(emptyList()) }
+
         _catalog.value = Catalog(
-            models = runCatching { client.models() }.getOrDefault(emptyList()),
-            agents = runCatching { client.agents() }.getOrDefault(emptyList()),
-            commands = runCatching { client.commands() }.getOrDefault(emptyList()),
-            providers = runCatching { client.providers() }.getOrDefault(emptyList()),
-            projects = runCatching { client.projects() }.getOrDefault(emptyList()),
+            models = models.await(),
+            agents = agents.await(),
+            commands = commands.await(),
+            providers = providers.await(),
+            projects = projects.await(),
         )
     }
 
@@ -214,6 +248,7 @@ class AppRepository(private val scope: CoroutineScope) {
             runCatching { client.deleteSession(sessionId) }
             _sessions.update { list -> list.filterNot { it.id == sessionId } }
             chats.remove(sessionId)
+            chatViews.remove(sessionId)
         }
     }
 

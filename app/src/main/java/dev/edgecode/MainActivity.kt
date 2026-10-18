@@ -1,5 +1,6 @@
 package dev.edgecode
 
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -14,9 +15,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.edgecode.core.design.EdgeTheme
 import dev.edgecode.core.design.Motion
+import dev.edgecode.core.design.isDark
 import dev.edgecode.data.SettingsStore
 import dev.edgecode.ui.AppViewModel
 import dev.edgecode.ui.AppViewModelFactory
@@ -32,6 +35,20 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val settingsStore = SettingsStore(applicationContext)
+
+        // Paint the right background before the first Compose frame. Without
+        // this a light-theme start flashes the dark window background and vice
+        // versa, because the window background comes from the XML theme.
+        val startDark = settingsStore.state.value.themeMode.isDark(this)
+        window.setBackgroundDrawable(
+            ColorDrawable(
+                ContextCompat.getColor(
+                    this,
+                    if (startDark) R.color.window_background_dark
+                    else R.color.window_background_light,
+                ),
+            ),
+        )
 
         setContent {
             val viewModel: AppViewModel = viewModel(

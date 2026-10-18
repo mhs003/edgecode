@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -38,7 +37,9 @@ import dev.edgecode.core.design.components.EdgeTopBar
 import dev.edgecode.core.design.components.RowDivider
 import dev.edgecode.core.design.components.Section
 import dev.edgecode.core.design.components.SettingsRow
+import dev.edgecode.core.design.components.bottomSystemInset
 import dev.edgecode.core.design.components.tappable
+import dev.edgecode.core.design.components.topSystemInset
 import dev.edgecode.core.model.ConnectionState
 import dev.edgecode.ui.AppViewModel
 
@@ -63,7 +64,8 @@ fun SettingsScreen(
         modifier = modifier
             .fillMaxSize()
             .background(scheme.background)
-            .systemBarsPadding(),
+            .topSystemInset()
+            .bottomSystemInset(),
     ) {
         EdgeTopBar(
             title = "Settings",
