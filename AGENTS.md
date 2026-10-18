@@ -13,9 +13,10 @@ selection, attachments.
 code is shaped the way it is. `PLAN.md` is the delivery plan and the API notes.
 Read all three before non-trivial changes.
 
-**Current state:** the UI is complete and runs against an in-process demo
-dataset (`DemoOpenCodeApi`). The real network client is not written yet; it
-replaces that one class.
+**Current state:** the UI is complete and runs against an in-process demo dataset
+(`DemoOpenCodeApi`). The chat surface and the shared scaffolding have been
+redesigned around a single-canvas design language (see *Design language* below).
+The real network client is not written yet; it replaces that one class.
 
 ## Build and run
 
@@ -84,6 +85,33 @@ app/src/main/java/dev/edgecode/
   pills by default, no gradients or glows, no oversized headings, no placeholder
   screens presented as finished.
 
+## Design language
+
+Current chat clients render one canvas with one fill. Match that.
+
+- **One fill, not a ladder.** `background == surface` is the canvas;
+  `surfaceContainer` is *the* fill (composer, user turns, control circles);
+  `surfaceContainerHigh` is the pressed/inset step. Do not introduce a fourth
+  tone, and do not tune the existing ones to sit closer together — the flatness
+  is the point.
+- **Nothing is outlined and nothing is divided.** No resting borders on inputs,
+  no separators in lists, no rules under headers. Separate with space.
+- **Chat has no app bar.** A floating row of circular controls sits over the
+  transcript and a floating composer pill sits below it; both paint the canvas
+  colour so content disappears into them rather than sliding under a band.
+- **Assistant turns are bare text.** No bubble, no container, no meta footer. A
+  settled turn shows one action (copy). Anything that describes the session as a
+  whole belongs in the overflow menu.
+- **Circular controls come from `CircleButton`.** Do not hand-roll a
+  `Box` + `clip` + `background` circle.
+- **Every inset has one owner per screen.** They are additive; two owners means
+  content pushed off the window with the keyboard open.
+- **At most one `weight`ed child per `Row`.** Unweighted siblings measure first
+  and the last one absorbs any overflow, which is how a status label once
+  rendered one character per line down the screen edge.
+- **Text clears 4.5:1** against the surface it sits on, canvas *and* tonal fill.
+  `ContrastTest` enforces this; run it after any palette change.
+
 ## Conventions
 
 - Compose-first, no XML layouts beyond `themes.xml` and `strings.xml`.
@@ -105,5 +133,5 @@ app/src/main/java/dev/edgecode/
 
 ## Commits
 
-Short, meaningful subject lines. No co-author or tool-attribution trailers.
-Commit and push at each coherent point rather than batching unrelated work.
+Short, meaningful subject lines. Commit at each coherent point rather than
+batching unrelated work.

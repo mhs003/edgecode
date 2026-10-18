@@ -96,11 +96,24 @@ therefore a real blocking round-trip, not a mocked animation.
 
 ## Transcript layout
 
-The chat list uses `reverseLayout = true`, with messages reversed so the newest
-sits at index 0. This is not cosmetic: streaming content grows continuously, and
-anchoring the newest item to the bottom means growth extends upward naturally
-instead of fighting the scroll position. "Jump to latest" becomes
-`animateScrollToItem(0)`.
+The chat list is top-anchored, like every current chat client: the first turn
+sits under the header and the conversation grows downward.
+
+An earlier revision used `reverseLayout = true`, which pins the newest message to
+the bottom and lets streaming growth extend upward without touching the scroll
+position. It was correct but read wrong — a two-turn session rendered as a large
+void above the messages, which is the opposite of how the reference clients look.
+The replacement keeps the useful half of that property explicitly:
+
+- `atBottom` is `!listState.canScrollForward`, so following is conditional on the
+  reader already being at the end.
+- A `LaunchedEffect` keyed on the message count *and* the newest reply's text
+  length re-pins the view as the reply streams. Keying on the count alone would
+  leave the newest text below the fold, which is the failure mode `reverseLayout`
+  was avoiding.
+- `scrollToEnd` scrolls past the final item rather than to it. `scrollToItem`
+  alone lands on the *top* of that item, which is wrong whenever the last turn is
+  taller than the viewport.
 
 ## Design decisions
 
@@ -117,6 +130,11 @@ instead of fighting the scroll position. "Jump to latest" becomes
 | 9 | API seam is an interface, not a client | The demo and the future v1 client implement the same `OpenCodeApi`, so the UI cannot tell them apart — except for the "Sample data" chip |
 | 10 | Optimistic writes go through the event stream | Guarantees the local and remote paths are exercised identically, which is what makes the demo a real test of the UI |
 | 11 | Conservative syntax highlighting | Only comments, strings, numbers and a small keyword set. Aggressive per-language highlighting is confidently wrong more often than it is right |
+| 12 | One canvas, one fill | An earlier revision had five surface tones (`background` → `surfaceContainerHighest`), which turned every region into a card and gave the whole app a boxed-in feel. Surfaces now collapse: `background == surface` is the canvas, `surfaceContainer` is the single fill used by the composer, user turns and control circles, and `surfaceContainerHigh` is the pressed/inset step. **Nothing is outlined and nothing is divided.** Rejected: keeping the ladder and merely tuning it — the problem was the number of steps, not their values |
+| 13 | No app bar on chat | The transcript runs edge to edge between a floating row of circular controls (top) and a floating composer pill (bottom). Both paint the canvas colour, so scrolled content disappears into them rather than sliding under a separate band. Rejected: keeping `EdgeTopBar` on chat — a title, a directory and two lines of chrome cost ~56dp of transcript for information the header no longer needs to carry |
+| 14 | Session statistics behind the overflow menu | Token totals, cost, diff size and context percentage describe the whole session, so they moved out of the transcript. Repeating them under every reply turned the conversation into a log. Context pressure is the one figure that changes what you do next, so it alone surfaces automatically — as a chip in the header once it passes 80% |
+| 15 | Per-turn meta footer removed | The agent name, model and cost are visible in the composer and the overflow menu. A settled turn now shows exactly one action (copy). Rejected: keeping a four-field footer for parity with the old design |
+| 16 | Top-anchored transcript with explicit follow | See *Transcript layout* above |
 
 ## Invariants
 
@@ -127,6 +145,14 @@ instead of fighting the scroll position. "Jump to latest" becomes
    feature code.
 4. Every part update reuses its part id, so identity is stable while streaming.
 5. Demo and real implementations both drive `ServerEvent`.
+6. Every inset has exactly one owner per screen. Nested or repeated inset
+   padding is additive and silently pushes content off the window.
+7. Text that carries information clears 4.5:1 against the surface it sits on.
+   `ContrastTest` enforces this for every tier against the canvas *and* the tonal
+   fill; a palette change that breaks it fails the build.
+8. Full-width `Row`s give at most one child `weight`. Unweighted siblings are
+   measured first and the last one absorbs the overflow, which is how a status
+   label once rendered one character per line down the screen edge.
 
 ## Extension points
 
@@ -136,4 +162,5 @@ instead of fighting the scroll position. "Jump to latest" becomes
 | Support the v2 server | Add `V2Api : OpenCodeApi` and probe at connect (`GET /global/health` vs `GET /api/info`) |
 | Add a screen | Add a `Screen` case, a branch in `EdgeApp`, and a composable under `ui/screens` |
 | Add an icon | Add a vector to `EdgeIcons` on the shared 24dp grid |
-| Change the look | Edit tokens in `core/design/Tokens.kt` and `Theme.kt`; no screen edits should be needed |
+| Change the look | Edit tokens in `core/design/Tokens.kt` and `Theme.kt`; no screen edits should be needed. Re-run `ContrastTest` — it will fail if a tier drops below 4.5:1 |
+| Change the chat surface | `ui/chat/Composer.kt` (the pill), `ui/chat/MessageRow.kt` (one turn), and the header in `ui/screens/ChatScreen.kt`. Shared circular controls come from `CircleButton` |

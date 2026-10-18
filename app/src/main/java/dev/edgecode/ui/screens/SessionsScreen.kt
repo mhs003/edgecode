@@ -188,33 +188,28 @@ fun SessionsScreen(
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
-                // Dividers sit between rows, not after the last one, and are
-                // inset to the title so the list reads as one column of text
-                // rather than a stack of boxed items.
-                val dividerIndent = Space.gutter + Size.statusDot + Space.md
-
+                // Rows are separated by space rather than by rules: a divider
+                // per row turns a list of sessions into a table.
                 if (active.isNotEmpty()) {
                     item { SectionTitle("Active") }
-                    itemsIndexed(active, key = { _, s -> s.id }) { index, session ->
+                    itemsIndexed(active, key = { _, s -> s.id }) { _, session ->
                         SessionRow(
                             session = session,
                             onOpen = { viewModel.openSession(session.id) },
                             onRename = { renaming = session },
                             onDelete = { deleting = session },
                         )
-                        if (index < active.lastIndex) RowDivider(indent = dividerIndent)
                     }
                 }
                 if (recent.isNotEmpty()) {
                     item { SectionTitle("Recent") }
-                    itemsIndexed(recent, key = { _, s -> s.id }) { index, session ->
+                    itemsIndexed(recent, key = { _, s -> s.id }) { _, session ->
                         SessionRow(
                             session = session,
                             onOpen = { viewModel.openSession(session.id) },
                             onRename = { renaming = session },
                             onDelete = { deleting = session },
                         )
-                        if (index < recent.lastIndex) RowDivider(indent = dividerIndent)
                     }
                 }
                 item { Spacer(Modifier.height(Space.xxxl)) }
@@ -371,10 +366,21 @@ private fun SessionRow(
     val edge = LocalEdgeColors.current
     var menu by remember { mutableStateOf(false) }
 
-    val statusColor = when (session.status) {
+    // Status is carried by the title's weight of colour rather than by a dot:
+    // a dot per row is a column of noise when almost every row is idle.
+    val titleColor = when (session.status) {
         SessionStatus.Working -> scheme.primary
         SessionStatus.Error -> scheme.error
-        SessionStatus.Idle -> edge.faint.copy(alpha = 0.5f)
+        SessionStatus.Idle -> scheme.onSurface
+    }
+
+    // The leaf directory, not the full path: the list is scanned by title, and a
+    // 26-character absolute path crowds out the model and token figures. The
+    // full path is shown in the session's own overflow menu.
+    val meta = buildList {
+        add(session.directory.trimEnd('/').substringAfterLast('/'))
+        session.modelLabel?.let { add(it) }
+        if (session.tokens.total > 0) add("${formatTokens(session.tokens.total)} tok")
     }
 
     Row(
@@ -382,22 +388,26 @@ private fun SessionRow(
             .fillMaxWidth()
             .tappable(onClick = onOpen)
             .padding(start = Space.gutter, end = Space.xxs, top = Space.md, bottom = Space.md),
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(modifier = Modifier.padding(top = 8.dp)) {
-            StatusDot(statusColor)
-        }
-        Spacer(Modifier.width(Space.md))
         Column(modifier = Modifier.weight(1f)) {
-            // The timestamp sits on the title line rather than in the metadata
-            // row: it belongs to the session as a whole, and in the metadata row
-            // it competed with the model, token and cost figures.
-            Row {
+            Text(
+                text = session.title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = titleColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(Space.xs))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Only the metadata is weighted. Two weighted children would
+                // split the row evenly and truncate the model and token figures
+                // to make room for a timestamp that needs a fraction of them.
                 Text(
-                    text = session.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = scheme.onSurface,
-                    maxLines = 2,
+                    text = meta.joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = edge.faint,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
@@ -406,35 +416,7 @@ private fun SessionRow(
                     text = formatRelative(session.updatedAt),
                     style = MaterialTheme.typography.labelSmall,
                     color = edge.faint,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-
-            Spacer(Modifier.height(Space.xxs))
-            Text(
-                text = shortenPath(session.directory),
-                style = MaterialTheme.typography.bodySmall,
-                color = edge.faint,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-
-            // One text node for the whole metadata cluster instead of a Text per
-            // figure plus separator nodes, which is both cheaper and easier to
-            // keep visually even.
-            val meta = buildList {
-                session.modelLabel?.let { add(it) }
-                if (session.tokens.total > 0) add("${formatTokens(session.tokens.total)} tok")
-                if (session.cost > 0) add(formatCost(session.cost))
-            }
-            if (meta.isNotEmpty()) {
-                Spacer(Modifier.height(Space.xs))
-                Text(
-                    text = meta.joinToString(" · "),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = edge.faint,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }

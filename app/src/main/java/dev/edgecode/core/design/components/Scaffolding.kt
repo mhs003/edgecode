@@ -33,8 +33,10 @@ import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
 
 /**
- * Screen header. Flat by design — no elevation, just a hairline — so it stays
- * visually subordinate to content.
+ * Screen header for the list and settings surfaces.
+ *
+ * Flat and seamless: it paints the canvas colour and draws no rule, so the
+ * content below is separated by space rather than by a line.
  */
 @Composable
 fun EdgeTopBar(
@@ -45,7 +47,7 @@ fun EdgeTopBar(
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     val scheme = MaterialTheme.colorScheme
-    Column(modifier = modifier.fillMaxWidth().background(scheme.surface)) {
+    Column(modifier = modifier.fillMaxWidth().background(scheme.background)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -65,7 +67,7 @@ fun EdgeTopBar(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     color = scheme.onSurface,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -73,7 +75,7 @@ fun EdgeTopBar(
                 if (subtitle != null) {
                     Text(
                         text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.labelSmall,
                         color = LocalEdgeColors.current.faint,
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -82,7 +84,6 @@ fun EdgeTopBar(
             }
             actions()
         }
-        HorizontalDivider(color = scheme.outlineVariant)
     }
 }
 
@@ -102,7 +103,7 @@ fun Section(
                 modifier = Modifier.padding(
                     start = Space.gutter,
                     end = Space.gutter,
-                    top = Space.xl,
+                    top = Space.lg,
                     bottom = Space.sm,
                 ),
             )
