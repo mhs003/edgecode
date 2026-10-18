@@ -1,6 +1,7 @@
 package dev.edgecode.core.design.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,16 +15,24 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.edgecode.core.design.EdgeIcons
@@ -56,13 +65,12 @@ fun EdgeTopBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (onBack != null) {
-                IconAction(
+                CircleButton(
                     icon = EdgeIcons.Back,
                     contentDescription = "Back",
                     onClick = onBack,
-                    tint = scheme.onSurface,
                 )
-                Spacer(Modifier.width(Space.xs))
+                Spacer(Modifier.width(Space.sm))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -83,6 +91,90 @@ fun EdgeTopBar(
                 }
             }
             actions()
+        }
+    }
+}
+
+/**
+ * Inline search that takes over the header.
+ *
+ * Appending a field below the bar left two competing headers on screen and
+ * pushed the whole list down. This replaces the bar instead, so entering search
+ * is a swap rather than an insertion and the field is the only thing on the row.
+ * The field is a tonal pill like the composer, not an outlined box.
+ */
+@Composable
+fun EdgeSearchBar(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val edge = LocalEdgeColors.current
+    val interaction = remember { MutableInteractionSource() }
+    val focus = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) { focus.requestFocus() }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = Size.topBar)
+            .padding(horizontal = Space.md, vertical = Space.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CircleButton(
+            icon = EdgeIcons.Back,
+            contentDescription = "Close search",
+            onClick = onClose,
+        )
+        Spacer(Modifier.width(Space.sm))
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = Size.control)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.full))
+                .background(scheme.surfaceContainer)
+                .padding(start = Space.lg, end = Space.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = scheme.onSurface),
+                cursorBrush = SolidColor(scheme.primary),
+                interactionSource = interaction,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focus),
+                decorationBox = { inner ->
+                    Box {
+                        if (value.isEmpty()) {
+                            Text(
+                                text = placeholder,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = edge.faint,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            )
+                        }
+                        inner()
+                    }
+                },
+            )
+            if (value.isNotEmpty()) {
+                IconAction(
+                    icon = EdgeIcons.Close,
+                    contentDescription = "Clear search",
+                    onClick = { onValueChange("") },
+                    size = Size.touchSm,
+                    iconSize = Size.iconSm,
+                )
+            }
         }
     }
 }

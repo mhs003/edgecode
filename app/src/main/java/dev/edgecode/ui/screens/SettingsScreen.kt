@@ -33,6 +33,9 @@ import dev.edgecode.core.design.Space
 import dev.edgecode.core.design.ThemeMode
 import dev.edgecode.core.design.components.Chip
 import dev.edgecode.core.design.components.EdgeSecondaryButton
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.components.EdgeTopBar
 import dev.edgecode.core.design.components.RowDivider
 import dev.edgecode.core.design.components.Section
@@ -98,14 +101,12 @@ fun SettingsScreen(
                     checked = settings.showReasoning,
                     onToggle = { viewModel.setShowReasoning(it) },
                 )
-                RowDivider()
                 ToggleRow(
                     title = "Expand tool calls",
                     subtitle = "Open tool input and output by default",
                     checked = settings.expandTools,
                     onToggle = { viewModel.setExpandTools(it) },
                 )
-                RowDivider()
                 ToggleRow(
                     title = "Send on Enter",
                     subtitle = "Off means Enter adds a newline",
@@ -147,14 +148,12 @@ fun SettingsScreen(
                     subtitle = "Version $version",
                     icon = EdgeIcons.Info,
                 )
-                RowDivider()
                 SettingsRow(
                     title = "OpenCode server",
                     subtitle = (connection as? ConnectionState.Connected)?.info?.version
                         ?.let { "v$it" } ?: "Not connected",
                     icon = EdgeIcons.Terminal,
                 )
-                RowDivider()
                 Column(
                     modifier = Modifier.padding(Space.gutter),
                 ) {
@@ -178,6 +177,8 @@ private fun ThemeSelector(current: ThemeMode, onSelect: (ThemeMode) -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val edge = LocalEdgeColors.current
 
+    // Segmented pills on the single fill, not tiles on a card: the selected
+    // state is the accent, everything else is the same tone as the composer.
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -189,10 +190,10 @@ private fun ThemeSelector(current: ThemeMode, onSelect: (ThemeMode) -> Unit) {
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(MaterialTheme.shapes.small)
-                    .background(if (selected) scheme.primaryContainer else scheme.surfaceContainer)
-                    .tappable { onSelect(mode) }
-                    .padding(vertical = Space.md),
+                    .heightIn(min = Size.touchSm)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.full))
+                    .background(if (selected) scheme.primary else scheme.surfaceContainer)
+                    .tappable { onSelect(mode) },
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -203,14 +204,14 @@ private fun ThemeSelector(current: ThemeMode, onSelect: (ThemeMode) -> Unit) {
                         ThemeMode.System -> EdgeIcons.Settings
                     },
                     contentDescription = null,
-                    tint = if (selected) scheme.onPrimaryContainer else edge.faint,
+                    tint = if (selected) scheme.onPrimary else edge.faint,
                     modifier = Modifier.size(Size.iconSm),
                 )
-                Spacer(Modifier.size(Space.sm))
+                Spacer(Modifier.width(Space.sm))
                 Text(
                     text = mode.name,
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (selected) scheme.onPrimaryContainer else scheme.onSurfaceVariant,
+                    color = if (selected) scheme.onPrimary else scheme.onSurfaceVariant,
                 )
             }
         }

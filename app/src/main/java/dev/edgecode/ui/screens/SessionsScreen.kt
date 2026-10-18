@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,7 +49,10 @@ import dev.edgecode.core.design.Space
 import dev.edgecode.core.design.components.Chip
 import dev.edgecode.core.design.components.EdgeButton
 import dev.edgecode.core.design.components.EdgeTextField
+import dev.edgecode.core.design.components.CircleButton
+import dev.edgecode.core.design.components.EdgeSearchBar
 import dev.edgecode.core.design.components.EdgeTopBar
+import dev.edgecode.core.design.components.StatusDot
 import dev.edgecode.core.design.components.EmptyState
 import dev.edgecode.core.design.components.IconAction
 import dev.edgecode.core.design.components.InlineProgress
@@ -107,61 +111,50 @@ fun SessionsScreen(
             .topSystemInset()
             .bottomSystemInset(),
     ) {
-        EdgeTopBar(
-            title = "Sessions",
-            subtitle = (connection as? ConnectionState.Connected)?.profile?.url,
-            actions = {
-                IconAction(
-                    icon = EdgeIcons.Search,
-                    contentDescription = "Search sessions",
-                    onClick = { searchOpen = !searchOpen; if (!searchOpen) query = "" },
-                    tint = if (searchOpen) scheme.primary else edge.faint,
-                )
-                IconAction(
-                    icon = EdgeIcons.Settings,
-                    contentDescription = "Settings",
-                    onClick = { viewModel.openSettings() },
-                )
-                Box {
-                    IconAction(
-                        icon = EdgeIcons.More,
-                        contentDescription = "More",
-                        onClick = { menuOpen = true },
-                    )
-                    DropdownMenu(
-                        expanded = menuOpen,
-                        onDismissRequest = { menuOpen = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("New session") },
-                            onClick = { menuOpen = false; creating = true },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Refresh") },
-                            onClick = { menuOpen = false; viewModel.refresh() },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Disconnect") },
-                            onClick = { menuOpen = false; viewModel.disconnect() },
-                        )
-                    }
-                }
-            },
-        )
-
+        // Search takes over the bar rather than appearing beneath it: two
+        // headers on screen at once was the thing that read as broken.
         if (searchOpen) {
-            EdgeTextField(
+            EdgeSearchBar(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = "Filter by title or directory",
-                leadingIcon = EdgeIcons.Search,
-                keyboardType = KeyboardType.Text,
-                imeAction = ImeAction.Search,
-                modifier = Modifier.padding(
-                    start = Space.gutter,
-                    end = Space.gutter,
-                    top = Space.md,
-                ),
+                placeholder = "Search sessions",
+                onClose = { searchOpen = false; query = "" },
+            )
+        } else {
+            EdgeTopBar(
+                title = "Sessions",
+                subtitle = (connection as? ConnectionState.Connected)?.profile?.url,
+                actions = {
+                    CircleButton(
+                        icon = EdgeIcons.Search,
+                        contentDescription = "Search sessions",
+                        onClick = { searchOpen = true },
+                    )
+                    Spacer(Modifier.width(Space.sm))
+                    CircleButton(
+                        icon = EdgeIcons.Plus,
+                        contentDescription = "New session",
+                        onClick = { creating = true },
+                    )
+                    Spacer(Modifier.width(Space.sm))
+                    Box {
+                        CircleButton(
+                            icon = EdgeIcons.More,
+                            contentDescription = "More",
+                            onClick = { menuOpen = true },
+                        )
+                        SessionsMenu(
+                            expanded = menuOpen,
+                            onDismiss = { menuOpen = false },
+                            serverUrl = (connection as? ConnectionState.Connected)?.profile?.url,
+                            sessionCount = sessions.size,
+                            onNewSession = { menuOpen = false; creating = true },
+                            onRefresh = { menuOpen = false; viewModel.refresh() },
+                            onSettings = { menuOpen = false; viewModel.openSettings() },
+                            onDisconnect = { menuOpen = false; viewModel.disconnect() },
+                        )
+                    }
+                },
             )
         }
 
@@ -266,6 +259,86 @@ fun SessionsScreen(
             },
         )
     }
+}
+
+/**
+ * Overflow menu.
+ *
+ * The old one listed three verbs with no context. This states what you are
+ * connected to and how much is there before offering the actions, so the menu
+ * answers "what am I looking at" as well as "what can I do".
+ */
+@Composable
+private fun SessionsMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    serverUrl: String?,
+    sessionCount: Int,
+    onNewSession: () -> Unit,
+    onRefresh: () -> Unit,
+    onSettings: () -> Unit,
+    onDisconnect: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val edge = LocalEdgeColors.current
+
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.padding(horizontal = Space.lg, vertical = Space.sm)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Space.xs),
+            ) {
+                StatusDot(scheme.primary)
+                Text(
+                    text = serverUrl ?: "Local demo",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = scheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                text = if (sessionCount == 1) "1 session" else "$sessionCount sessions",
+                style = MaterialTheme.typography.labelSmall,
+                color = edge.faint,
+            )
+        }
+        HorizontalDivider(color = scheme.outlineVariant)
+
+        DropdownMenuItem(
+            text = { Text("New session") },
+            leadingIcon = { MenuIcon(EdgeIcons.Plus) },
+            onClick = onNewSession,
+        )
+        DropdownMenuItem(
+            text = { Text("Refresh") },
+            leadingIcon = { MenuIcon(EdgeIcons.Refresh) },
+            onClick = onRefresh,
+        )
+        DropdownMenuItem(
+            text = { Text("Settings") },
+            leadingIcon = { MenuIcon(EdgeIcons.Settings) },
+            onClick = onSettings,
+        )
+
+        HorizontalDivider(color = scheme.outlineVariant)
+
+        DropdownMenuItem(
+            text = { Text("Disconnect", color = scheme.error) },
+            leadingIcon = { MenuIcon(EdgeIcons.Server, tint = scheme.error) },
+            onClick = onDisconnect,
+        )
+    }
+}
+
+@Composable
+private fun MenuIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color? = null) {
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = tint ?: LocalEdgeColors.current.faint,
+        modifier = Modifier.size(Size.icon),
+    )
 }
 
 @Composable
