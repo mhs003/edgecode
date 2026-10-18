@@ -38,6 +38,7 @@ import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
+import dev.edgecode.core.design.Stroke
 
 /**
  * Primary action. One per screen wherever possible — hierarchy comes from
@@ -103,7 +104,7 @@ fun EdgeSecondaryButton(
             .heightIn(min = 48.dp)
             .clip(MaterialTheme.shapes.medium)
             .background(scheme.surfaceContainer)
-            .border(1.dp, scheme.outlineVariant, MaterialTheme.shapes.medium)
+            .border(Stroke.hairline, scheme.outlineVariant, MaterialTheme.shapes.medium)
             .tappable(enabled = enabled, onClick = onClick)
             .padding(horizontal = Space.xl),
         verticalAlignment = Alignment.CenterVertically,
@@ -122,6 +123,44 @@ fun EdgeSecondaryButton(
             text = text,
             style = MaterialTheme.typography.labelLarge,
             color = if (enabled) scheme.onSurface else LocalEdgeColors.current.faint,
+        )
+    }
+}
+
+/**
+ * Circular icon control.
+ *
+ * The transcript header and the composer both build from this: a row of circles
+ * reads as a single toolbar rather than three separate buttons, and it is the
+ * shape every current chat client uses for its primary affordances.
+ */
+@Composable
+fun CircleButton(
+    icon: ImageVector,
+    contentDescription: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: androidx.compose.ui.unit.Dp = Size.control,
+    iconSize: androidx.compose.ui.unit.Dp = Size.icon,
+    fill: Color? = null,
+    tint: Color? = null,
+    enabled: Boolean = true,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val edge = LocalEdgeColors.current
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.full))
+            .background(if (enabled) fill ?: scheme.surfaceContainer else scheme.surfaceContainerLow)
+            .tappable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = if (enabled) tint ?: scheme.onSurfaceVariant else edge.faint,
+            modifier = Modifier.size(iconSize),
         )
     }
 }
@@ -211,7 +250,7 @@ fun EdgeTextField(
                         .heightIn(min = minHeight)
                         .clip(MaterialTheme.shapes.medium)
                         .background(if (enabled) scheme.surfaceContainer else scheme.surfaceContainerLow)
-                        .border(1.dp, borderColor, MaterialTheme.shapes.medium)
+                        .border(Stroke.hairline, borderColor, MaterialTheme.shapes.medium)
                         .padding(horizontal = Space.md, vertical = Space.sm),
                     verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top,
                 ) {

@@ -47,6 +47,7 @@ import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
+import dev.edgecode.core.design.Stroke
 import dev.edgecode.core.design.components.CodeBlock
 import dev.edgecode.core.design.components.MarkdownText
 import dev.edgecode.core.design.components.tappable
@@ -357,7 +358,7 @@ private fun StepRow(part: Part.Step, modifier: Modifier = Modifier) {
     ) {
         Box(
             modifier = Modifier
-                .height(1.dp)
+                .height(Stroke.hairline)
                 .weight(1f)
                 .background(MaterialTheme.colorScheme.outlineVariant),
         )
@@ -370,7 +371,7 @@ private fun StepRow(part: Part.Step, modifier: Modifier = Modifier) {
         }
         Box(
             modifier = Modifier
-                .height(1.dp)
+                .height(Stroke.hairline)
                 .weight(1f)
                 .background(MaterialTheme.colorScheme.outlineVariant),
         )
@@ -411,7 +412,7 @@ private fun DiffBlock(files: List<DiffFile>, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.small)
             .background(scheme.surfaceContainerLow)
-            .border(1.dp, scheme.outlineVariant, MaterialTheme.shapes.small),
+            .border(Stroke.hairline, scheme.outlineVariant, MaterialTheme.shapes.small),
     ) {
         files.forEachIndexed { fileIndex, file ->
             Row(
@@ -455,7 +456,7 @@ private fun DiffBlock(files: List<DiffFile>, modifier: Modifier = Modifier) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(1.dp)
+                        .height(Stroke.hairline)
                         .background(scheme.outlineVariant),
                 )
             }

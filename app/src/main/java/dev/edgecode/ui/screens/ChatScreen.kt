@@ -6,6 +6,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,13 +15,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,22 +43,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import dev.edgecode.core.design.EdgeIcons
-import dev.edgecode.core.design.EdgeText
 import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
-import dev.edgecode.core.design.components.EdgeTopBar
+import dev.edgecode.core.design.components.CircleButton
 import dev.edgecode.core.design.components.EmptyState
 import dev.edgecode.core.design.components.ErrorNotice
-import dev.edgecode.core.design.components.IconAction
 import dev.edgecode.core.design.components.InlineProgress
+import dev.edgecode.core.design.components.bottomSystemInset
 import dev.edgecode.core.design.components.tappable
+import dev.edgecode.core.design.components.topSystemInset
 import dev.edgecode.core.model.Attachment
 import dev.edgecode.core.model.AttachmentKind
+import dev.edgecode.core.model.ChatMessage
 import dev.edgecode.core.model.ModelRef
+import dev.edgecode.core.model.Part
 import dev.edgecode.core.util.formatCost
 import dev.edgecode.core.util.formatTokens
 import dev.edgecode.core.util.queryFileMetadata
@@ -70,12 +74,35 @@ import dev.edgecode.ui.chat.PermissionCard
 import kotlinx.coroutines.launch
 import java.util.UUID
 
+/** Test tag for the transcript list, used by the scrolling regression tests. */
+const val TranscriptTestTag = "transcript"
+
+/** Height of the floating header's control row, excluding the status-bar inset. */
+private val HeaderHeight = 60.dp
+
+/**
+ * Jumps to the very end of the transcript.
+ *
+ * `scrollToItem` alone lands on the *top* of the final item, which is wrong
+ * whenever that item is taller than the viewport — a long reply, or a reply
+ * mid-stream. Scrolling past it clamps at the true bottom instead, so the
+ * newest line is what the reader sees.
+ */
+private suspend fun LazyListState.scrollToEnd(index: Int) {
+    scrollToItem(index)
+    scrollBy(100_000f)
+}
+
 /**
  * The transcript.
  *
+ * There is no app bar. A row of circular controls floats over the top of the
+ * transcript and the composer floats over the bottom, so the conversation runs
+ * edge to edge between them and the window reads as one surface rather than a
+ * stack of framed bands.
+ *
  * Laid out with `reverseLayout` so the newest message is anchored to the bottom:
- * that keeps streaming content pinned without fighting the scroll position, and
- * makes "load older" a natural extension later.
+ * that keeps streaming content pinned without fighting the scroll position.
  */
 @Composable
 fun ChatScreen(
@@ -87,7 +114,10 @@ fun ChatScreen(
     val edge = LocalEdgeColors.current
     val context = LocalContext.current
 
-    val state by viewModel.chat(sessionId).collectAsState()
+    // Held in a remember so the collector is not restarted if the repository
+    // ever hands back a different instance.
+    val chatFlow = remember(sessionId) { viewModel.chat(sessionId) }
+    val state by chatFlow.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
     val catalog by viewModel.catalog.collectAsState()
     val permissions by viewModel.permissions.collectAsState()
@@ -136,54 +166,45 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    val atBottom by remember {
-        derivedStateOf {
-            val info = listState.layoutInfo
-            info.totalItemsCount == 0 || listState.firstVisibleItemIndex <= 1
-        }
+    val atBottom by remember { derivedStateOf { !listState.canScrollForward } }
+
+    // How much text the newest reply currently holds. Used as a scroll trigger
+    // so the view follows the reply as it streams, not only when a turn lands.
+    val streamingGrowth = messages.lastOrNull()
+        ?.let { last -> (last as? ChatMessage.Assistant)?.parts }
+        ?.sumOf { (it as? Part.Text)?.text?.length ?: 0 }
+        ?: 0
+
+    // Top-anchored, so the transcript only needs steering while the reader is
+    // already at the end. Scrolling away is respected.
+    LaunchedEffect(messages.size, streamingGrowth) {
+        if (messages.isNotEmpty() && atBottom) listState.scrollToEnd(messages.lastIndex)
     }
 
-    // A new turn arrives: follow it only if the reader had not scrolled away.
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty() && atBottom) listState.animateScrollToItem(0)
+    // Opening a session should land on the newest turn, not the first.
+    LaunchedEffect(sessionId, messages.isNotEmpty()) {
+        if (messages.isNotEmpty()) listState.scrollToEnd(messages.lastIndex)
     }
+
+    // Context pressure belongs to the model that actually served the session.
+    // Dividing by the currently selected model reported 146% for a GPT-6
+    // session, because it was being divided by Opus's 200k window.
+    val servingModel = catalog.model(state.lastAssistant?.model)
+        ?: catalog.model(selectedModel)
+        ?: catalog.defaultModel
+    val contextUsed = session?.tokens?.contextUsed ?: 0
+    val contextLimit = servingModel?.contextLimit ?: 0
+    val contextPercent = if (contextLimit > 0) contextUsed.toFloat() / contextLimit else 0f
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(scheme.background)
-            .systemBarsPadding(),
+            // The root owns the bottom inset once and only once, so the
+            // transcript and the composer move together above the keyboard.
+            .bottomSystemInset(),
     ) {
-        EdgeTopBar(
-            title = session?.title ?: "Session",
-            subtitle = session?.directory,
-            onBack = { viewModel.back() },
-            actions = {
-                Box {
-                    IconAction(
-                        icon = EdgeIcons.More,
-                        contentDescription = "Session menu",
-                        onClick = { menuOpen = true },
-                    )
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text("New session") },
-                            onClick = { menuOpen = false; viewModel.back(); },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Settings") },
-                            onClick = { menuOpen = false; viewModel.openSettings() },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Delete session", color = scheme.error) },
-                            onClick = { menuOpen = false; viewModel.deleteSession(sessionId) },
-                        )
-                    }
-                }
-            },
-        )
-
-        Box(modifier = Modifier.weight(1f)) {
+        Box(modifier = Modifier.weight(1f).fillMaxWidth().testTag(TranscriptTestTag)) {
             when {
                 state.loading -> InlineProgress(
                     label = "Loading session",
@@ -210,51 +231,92 @@ fun ChatScreen(
                     )
                 }
 
-                else -> Column(modifier = Modifier.fillMaxSize()) {
-                    SessionMetaBar(
-                        cost = session?.cost ?: state.lastAssistant?.cost ?: 0.0,
-                        tokens = session?.tokens?.total ?: state.lastAssistant?.tokens?.total ?: 0,
-                        contextUsed = session?.tokens?.contextUsed ?: 0,
-                        contextLimit = catalog.model(selectedModel)?.contextLimit
-                            ?: catalog.defaultModel?.contextLimit ?: 0,
+                else -> LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    // Clears the floating header so the first turn is never
+                    // trapped underneath it.
+                    contentPadding = PaddingValues(
+                        top = HeaderHeight,
+                        bottom = Space.md,
+                    ),
+                ) {
+                    items(
+                        items = messages,
+                        key = { it.id },
+                    ) { message ->
+                        MessageRow(
+                            message = message,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Space.lg, vertical = Space.md)
+                                .widthIn(max = Space.measure),
+                            showReasoning = settings.showReasoning,
+                            expandTools = settings.expandTools,
+                        )
+                    }
+                }
+            }
+
+            // Floating header. Its background is the canvas colour, so scrolled
+            // content disappears into it rather than sliding under a separate
+            // band, and it is the only owner of the top inset.
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .background(scheme.background)
+                    .topSystemInset()
+                    .padding(horizontal = Space.md, vertical = Space.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircleButton(
+                    icon = EdgeIcons.Back,
+                    contentDescription = "Back to sessions",
+                    onClick = { viewModel.back() },
+                )
+
+                Spacer(Modifier.weight(1f))
+
+                if (contextPercent > 0.8f) {
+                    ContextChip(percent = contextPercent)
+                    Spacer(Modifier.width(Space.sm))
+                }
+
+                CircleButton(
+                    icon = EdgeIcons.Plus,
+                    contentDescription = "New session",
+                    onClick = { viewModel.back() },
+                )
+                Spacer(Modifier.width(Space.sm))
+                Box {
+                    CircleButton(
+                        icon = EdgeIcons.More,
+                        contentDescription = "Session menu",
+                        onClick = { menuOpen = true },
+                    )
+                    SessionMenu(
+                        expanded = menuOpen,
+                        onDismiss = { menuOpen = false },
+                        directory = session?.directory,
+                        tokens = session?.tokens?.total ?: 0,
+                        cost = session?.cost ?: 0.0,
                         additions = session?.additions ?: 0,
                         deletions = session?.deletions ?: 0,
+                        contextPercent = contextPercent,
+                        onNewSession = { menuOpen = false; viewModel.back() },
+                        onSettings = { menuOpen = false; viewModel.openSettings() },
+                        onDelete = { menuOpen = false; viewModel.deleteSession(sessionId) },
                     )
-
-                    LazyColumn(
-                        state = listState,
-                        reverseLayout = true,
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        contentPadding = PaddingValues(
-                            top = Space.lg,
-                            bottom = Space.lg,
-                        ),
-                    ) {
-                        items(
-                            items = messages.asReversed(),
-                            key = { it.id },
-                        ) { message ->
-                            MessageRow(
-                                message = message,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = Space.gutter, vertical = Space.md)
-                                    .widthIn(max = Space.measure),
-                                showReasoning = settings.showReasoning,
-                                expandTools = settings.expandTools,
-                                modelName = { ref: ModelRef? -> catalog.model(ref)?.name },
-                            )
-                        }
-                    }
                 }
             }
 
             ScrollToLatest(
                 visible = !atBottom && messages.isNotEmpty(),
-                onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                onClick = { scope.launch { listState.scrollToEnd(messages.lastIndex) } },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = Space.lg, bottom = Space.lg),
+                    .padding(end = Space.lg, bottom = Space.md),
             )
         }
 
@@ -268,8 +330,6 @@ fun ChatScreen(
                 )
             }
         }
-
-        HorizontalDivider(color = scheme.outlineVariant)
 
         Composer(
             value = draft,
@@ -303,7 +363,6 @@ fun ChatScreen(
                 }
             },
             sendOnEnter = settings.sendOnEnter,
-            modifier = Modifier.navigationBarsPadding().imePadding(),
         )
     }
 
@@ -333,54 +392,95 @@ fun ChatScreen(
 }
 
 /**
- * Session meta: cost, tokens, context pressure and diff size. Sits above the
- * transcript because it describes the whole session, not any one message.
+ * Context pressure, shown only once it is worth acting on. This is the one
+ * session statistic that changes what you should do next, so it earns a place
+ * in the header; cost and token totals live in the overflow menu.
  */
 @Composable
-private fun SessionMetaBar(
-    cost: Double,
+private fun ContextChip(percent: Float) {
+    val edge = LocalEdgeColors.current
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(Radius.full))
+            .background(edge.warning.copy(alpha = 0.16f))
+            .padding(horizontal = Space.sm, vertical = Space.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Space.xs),
+    ) {
+        Icon(
+            imageVector = EdgeIcons.Warning,
+            contentDescription = null,
+            tint = edge.warning,
+            modifier = Modifier.size(13.dp),
+        )
+        Text(
+            text = "${(percent * 100).toInt()}%",
+            style = MaterialTheme.typography.labelSmall,
+            color = edge.warning,
+        )
+    }
+}
+
+/**
+ * Session facts and session actions, kept out of the transcript. The statistics
+ * describe the whole session, so they belong behind a deliberate tap rather than
+ * repeated under every reply.
+ */
+@Composable
+private fun SessionMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    directory: String?,
     tokens: Int,
-    contextUsed: Int,
-    contextLimit: Int,
+    cost: Double,
     additions: Int,
     deletions: Int,
+    contextPercent: Float,
+    onNewSession: () -> Unit,
+    onSettings: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     val edge = LocalEdgeColors.current
-    val percent = if (contextLimit > 0) (contextUsed.toFloat() / contextLimit) else 0f
 
-    val parts = buildList {
+    val stats = buildList {
         if (tokens > 0) add("${formatTokens(tokens)} tok")
-        if (contextLimit > 0) add("${(percent * 100).toInt()}% ctx")
         if (cost > 0) add(formatCost(cost))
+        if (contextPercent > 0f) add("${(contextPercent * 100).toInt()}% ctx")
         if (additions > 0) add("+$additions")
         if (deletions > 0) add("−$deletions")
     }
-    if (parts.isEmpty()) return
 
-    Column {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Space.gutter, vertical = Space.sm),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.padding(horizontal = Space.lg, vertical = Space.sm)) {
+            if (directory != null) {
                 Text(
-                    text = parts.joinToString("  ·  "),
-                    style = EdgeText.meta,
+                    text = directory,
+                    style = MaterialTheme.typography.labelSmall,
                     color = edge.faint,
                 )
-                Spacer(Modifier.weight(1f))
-                if (contextLimit > 0 && percent > 0.8f) {
-                    Text(
-                        text = "context filling",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = edge.warning,
-                    )
-                }
+            }
+            if (stats.isNotEmpty()) {
+                Text(
+                    text = stats.joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.onSurfaceVariant,
+                )
             }
         }
         HorizontalDivider(color = scheme.outlineVariant)
+        DropdownMenuItem(
+            text = { Text("New session") },
+            onClick = onNewSession,
+        )
+        DropdownMenuItem(
+            text = { Text("Settings") },
+            onClick = onSettings,
+        )
+        DropdownMenuItem(
+            text = { Text("Delete session", color = scheme.error) },
+            onClick = onDelete,
+        )
     }
 }
 
@@ -403,9 +503,9 @@ private fun ScrollToLatest(
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(Size.control)
                 .clip(RoundedCornerShape(Radius.full))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .background(MaterialTheme.colorScheme.surfaceContainer)
                 .tappable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {

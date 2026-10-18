@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import dev.edgecode.core.design.EdgeIcons
 import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Space
+import dev.edgecode.core.design.Stroke
 import dev.edgecode.core.markdown.InlineColors
 import dev.edgecode.core.markdown.Markdown
 import dev.edgecode.core.markdown.MdBlock
@@ -172,7 +173,7 @@ private fun TaskMark(checked: Boolean) {
             .clip(MaterialTheme.shapes.extraSmall)
             .background(if (checked) scheme.primary.copy(alpha = 0.16f) else androidx.compose.ui.graphics.Color.Transparent)
             .border(
-                width = 1.5.dp,
+                width = Stroke.thin,
                 color = if (checked) scheme.primary else scheme.outline,
                 shape = MaterialTheme.shapes.extraSmall,
             ),

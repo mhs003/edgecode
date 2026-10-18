@@ -37,18 +37,27 @@ object Space {
  * is what keeps the interface from looking like a template.
  */
 object Radius {
-    val xs: Dp = 4.dp
-    val sm: Dp = 8.dp
-    val md: Dp = 12.dp
-    val lg: Dp = 16.dp
-    val xl: Dp = 22.dp
+    val xs: Dp = 6.dp
+    val sm: Dp = 10.dp
+    val md: Dp = 14.dp
+    val lg: Dp = 20.dp
+    val xl: Dp = 28.dp
     val full: Dp = 1000.dp
 }
 
 object Size {
     val topBar: Dp = 56.dp
-    val touch: Dp = 44.dp
-    val touchSm: Dp = 34.dp
+
+    /** Standard touch target. Matches the platform's 48dp minimum. */
+    val touch: Dp = 48.dp
+
+    /**
+     * Dense target for controls inside a list row or a code header, where a full
+     * 48dp would visibly bloat the row. Still well above the point where taps
+     * start to miss.
+     */
+    val touchSm: Dp = 44.dp
+
     val icon: Dp = 20.dp
     val iconSm: Dp = 16.dp
     val iconLg: Dp = 24.dp
@@ -56,6 +65,27 @@ object Size {
     val statusDot: Dp = 7.dp
     val attachment: Dp = 72.dp
     val composerMaxLines: Int = 8
+
+    /**
+     * Circular control in the floating transcript header. Sized so a full row of
+     * them reads as one object rather than three separate buttons.
+     */
+    val control: Dp = 44.dp
+
+    /** Circular control tucked inside the composer pill. */
+    val controlSm: Dp = 38.dp
+}
+
+/**
+ * Stroke widths. Dividers and component borders are hairlines at every density,
+ * so they get named values rather than a literal repeated per component.
+ */
+object Stroke {
+    /** Dividers and resting component borders. */
+    val hairline: Dp = 1.dp
+
+    /** Focus rings and inputs that need to read slightly stronger. */
+    val thin: Dp = 1.5.dp
 }
 
 /**

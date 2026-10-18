@@ -4,37 +4,40 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import dev.edgecode.core.design.EdgeIcons
-import dev.edgecode.core.design.EdgeText
 import dev.edgecode.core.design.LocalEdgeColors
+import dev.edgecode.core.design.Radius
+import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
 import dev.edgecode.core.design.components.ErrorNotice
 import dev.edgecode.core.design.components.IconAction
 import dev.edgecode.core.design.components.MarkdownText
+import dev.edgecode.core.model.Attachment
+import dev.edgecode.core.model.AttachmentKind
 import dev.edgecode.core.model.ChatMessage
-import dev.edgecode.core.model.ModelRef
-import dev.edgecode.core.util.formatCost
-import dev.edgecode.core.util.formatTokens
+import dev.edgecode.core.model.Part
 import dev.edgecode.core.util.rememberCopyAction
 
 /**
  * One turn.
  *
- * User turns sit in a tonal block against the right edge so they are instantly
- * distinguishable when scrolling; assistant turns are plain, full-width text.
- * That asymmetry is what keeps a long technical transcript readable — the agent's
+ * A prompt is a compact tonal bubble against the right edge; the agent's reply
+ * is plain full-width text on the canvas with nothing drawn around it. That
+ * asymmetry is what keeps a long technical transcript readable — the agent's
  * output is the document, your prompts are the annotations.
  */
 @Composable
@@ -43,7 +46,6 @@ fun MessageRow(
     modifier: Modifier = Modifier,
     showReasoning: Boolean = true,
     expandTools: Boolean = false,
-    modelName: (ModelRef?) -> String? = { null },
 ) {
     when (message) {
         is ChatMessage.User -> UserMessageRow(message, modifier)
@@ -52,7 +54,6 @@ fun MessageRow(
             modifier = modifier,
             showReasoning = showReasoning,
             expandTools = expandTools,
-            modelName = modelName,
         )
     }
 }
@@ -65,7 +66,7 @@ private fun UserMessageRow(message: ChatMessage.User, modifier: Modifier = Modif
         horizontalArrangement = Arrangement.End,
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth(0.88f),
+            modifier = Modifier.fillMaxWidth(0.86f),
             horizontalAlignment = Alignment.End,
         ) {
             if (message.attachments.isNotEmpty()) {
@@ -73,17 +74,15 @@ private fun UserMessageRow(message: ChatMessage.User, modifier: Modifier = Modif
                     verticalArrangement = Arrangement.spacedBy(Space.sm),
                     modifier = Modifier.padding(bottom = Space.sm),
                 ) {
-                    message.attachments.forEach { attachment ->
-                        AttachmentBubble(attachment)
-                    }
+                    message.attachments.forEach { AttachmentBubble(it) }
                 }
             }
             if (message.text.isNotBlank()) {
                 Column(
                     modifier = Modifier
-                        .clip(MaterialTheme.shapes.large)
+                        .clip(RoundedCornerShape(Radius.lg))
                         .background(scheme.surfaceContainer)
-                        .padding(horizontal = Space.md, vertical = Space.md),
+                        .padding(horizontal = Space.lg, vertical = Space.md),
                 ) {
                     MarkdownText(
                         text = message.text,
@@ -101,13 +100,15 @@ private fun AssistantMessageRow(
     modifier: Modifier = Modifier,
     showReasoning: Boolean,
     expandTools: Boolean,
-    modelName: (ModelRef?) -> String?,
 ) {
     val edge = LocalEdgeColors.current
     val copy = rememberCopyAction()
-    val plainText = message.parts
-        .filterIsInstance<dev.edgecode.core.model.Part.Text>()
-        .joinToString("\n\n") { it.text }
+    // Remembered: this walks every part and builds a string. It only changes when
+    // the parts change, which during streaming is once per chunk — not on every
+    // unrelated recomposition.
+    val plainText = remember(message.parts) {
+        message.parts.filterIsInstance<Part.Text>().joinToString("\n\n") { it.text }
+    }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -127,75 +128,56 @@ private fun AssistantMessageRow(
             ErrorNotice(message = message.error)
         }
 
-        // Meta only once the turn has settled; while streaming it is just noise.
-        if (!message.streaming) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = Space.xxs),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Space.sm),
-            ) {
-                val label = buildString {
-                    message.agent?.let { append(it) }
-                    modelName(message.model)?.let { model ->
-                        if (isNotEmpty()) append(" · ")
-                        append(model)
-                    }
-                    if (message.tokens.total > 0) {
-                        if (isNotEmpty()) append(" · ")
-                        append("${formatTokens(message.tokens.total)} tok")
-                    }
-                    if (message.cost > 0) {
-                        if (isNotEmpty()) append(" · ")
-                        append(formatCost(message.cost))
-                    }
-                }
-                if (label.isNotEmpty()) {
-                    Text(text = label, style = EdgeText.meta, color = edge.faint)
-                    Spacer(Modifier.width(0.dp))
-                }
-                Spacer(Modifier.weight(1f))
-                if (plainText.isNotBlank()) {
-                    IconAction(
-                        icon = EdgeIcons.Copy,
-                        contentDescription = "Copy message",
-                        onClick = { copy("message", plainText) },
-                        size = dev.edgecode.core.design.Size.touchSm,
-                        iconSize = dev.edgecode.core.design.Size.iconSm,
-                    )
-                }
+        // Nothing on a settled turn except the one action worth having. No meta
+        // footer: the turn's model and cost are session facts, and repeating
+        // them under every reply turns the transcript into a log.
+        if (!message.streaming && plainText.isNotBlank()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconAction(
+                    icon = EdgeIcons.Copy,
+                    contentDescription = "Copy reply",
+                    onClick = { copy("reply", plainText) },
+                    size = Size.touchSm,
+                    iconSize = Size.iconSm,
+                    tint = edge.faint,
+                    // Pulled left by half the difference between the touch
+                    // target and the glyph, so the icon optically lines up with
+                    // the text it belongs to rather than with its own padding.
+                    modifier = Modifier.offset(x = -(Size.touchSm - Size.iconSm) / 2),
+                )
             }
         }
     }
 }
 
 @Composable
-private fun AttachmentBubble(attachment: dev.edgecode.core.model.Attachment) {
+private fun AttachmentBubble(attachment: Attachment) {
     val edge = LocalEdgeColors.current
     val scheme = MaterialTheme.colorScheme
     Row(
         modifier = Modifier
-            .clip(MaterialTheme.shapes.small)
+            .clip(RoundedCornerShape(Radius.sm))
             .background(scheme.surfaceContainer)
-            .padding(horizontal = Space.sm, vertical = Space.xs),
+            .padding(horizontal = Space.md, vertical = Space.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.sm),
     ) {
-        androidx.compose.material3.Icon(
-            imageVector = if (attachment.kind == dev.edgecode.core.model.AttachmentKind.Image) {
+        Icon(
+            imageVector = if (attachment.kind == AttachmentKind.Image) {
                 EdgeIcons.Image
             } else {
                 EdgeIcons.File
             },
             contentDescription = null,
             tint = edge.faint,
-            modifier = Modifier.height(dev.edgecode.core.design.Size.iconSm),
+            modifier = Modifier.height(Size.iconSm),
         )
         Text(
             text = attachment.name,
             style = MaterialTheme.typography.bodySmall,
             color = scheme.onSurfaceVariant,
             maxLines = 1,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -34,14 +35,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
@@ -52,21 +57,24 @@ import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
-import dev.edgecode.core.design.components.IconAction
+import dev.edgecode.core.design.Stroke
+import dev.edgecode.core.design.components.CircleButton
 import dev.edgecode.core.design.components.tappable
 import dev.edgecode.core.model.Attachment
 import dev.edgecode.core.model.AttachmentKind
 import dev.edgecode.core.model.SlashCommand
 import dev.edgecode.core.util.loadThumbnail
 
+/** Test tag for the composer container, used by the inset regression tests. */
+const val ComposerTestTag = "composer"
+
 /**
  * Message input.
  *
- * Three things live here that the user needs constantly without leaving the
- * keyboard: what will answer (model), how (agent), and what you can ask for
- * (slash commands). Putting them in the composer rather than in a settings
- * screen is what makes the app feel like a client for a running session rather
- * than a form.
+ * A single rounded pill floating clear of the window edges, with the controls
+ * that matter on the inside: attach, what will answer (model), how (agent), and
+ * send. Keeping those in the composer rather than in a settings screen is what
+ * makes the app feel like a client for a running session rather than a form.
  */
 @Composable
 fun Composer(
@@ -104,198 +112,168 @@ fun Composer(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(scheme.surface),
+            .padding(start = Space.md, end = Space.md, top = Space.sm, bottom = Space.md)
+            .testTag(ComposerTestTag),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 1.dp)
-                .background(scheme.outlineVariant),
-        )
-
         AnimatedVisibility(
             visible = matches.isNotEmpty(),
             enter = fadeIn() + expandVertically(),
             exit = fadeOut() + shrinkVertically(),
         ) {
-            SlashCommandList(
-                commands = matches,
-                onSelect = onCommandSelected,
-            )
+            SlashCommandList(commands = matches, onSelect = onCommandSelected)
         }
 
         if (attachments.isNotEmpty()) {
             AttachmentStrip(attachments = attachments, onRemove = onRemoveAttachment)
         }
 
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Space.md, vertical = Space.sm),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                .clip(RoundedCornerShape(Radius.xl))
+                .background(scheme.surfaceContainer)
+                // A focus ring only. The fill already reads as a distinct
+                // floating surface, so a resting border just draws a box
+                // around a box and dulls the curve.
+                .border(
+                    width = Stroke.hairline,
+                    color = if (focused) scheme.primary else Color.Transparent,
+                    shape = RoundedCornerShape(Radius.xl),
+                ),
         ) {
-            Row(
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = scheme.onSurface),
+                cursorBrush = SolidColor(scheme.primary),
+                interactionSource = interaction,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                    imeAction = ImeAction.Default,
+                ),
                 modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 46.dp, max = 180.dp)
-                    .clip(RoundedCornerShape(Radius.lg))
-                    .background(scheme.surfaceContainer)
-                    .border(
-                        width = 1.dp,
-                        color = if (focused) scheme.primary else scheme.outlineVariant,
-                        shape = RoundedCornerShape(Radius.lg),
-                    ),
-                verticalAlignment = Alignment.Bottom,
-            ) {
-                BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = scheme.onSurface),
-                    cursorBrush = SolidColor(scheme.primary),
-                    interactionSource = interaction,
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Sentences,
-                        imeAction = ImeAction.Default,
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = Space.md, top = Space.md, bottom = Space.md)
-                        .onPreviewKeyEvent { event ->
-                            if (sendOnEnter &&
-                                event.type == KeyEventType.KeyDown &&
-                                event.key == Key.Enter &&
-                                !event.isShiftPressed
-                            ) {
-                                onSend()
-                                true
-                            } else {
-                                false
-                            }
-                        },
-                    decorationBox = { inner ->
-                        Box {
-                            if (value.isEmpty()) {
-                                Text(
-                                    text = "Ask for changes, or type / for commands",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = edge.faint,
-                                )
-                            }
-                            inner()
+                    .fillMaxWidth()
+                    .padding(start = Space.lg, end = Space.lg, top = Space.lg, bottom = Space.md)
+                    .onPreviewKeyEvent { event ->
+                        if (sendOnEnter &&
+                            event.type == KeyEventType.KeyDown &&
+                            event.key == Key.Enter &&
+                            !event.isShiftPressed
+                        ) {
+                            onSend()
+                            true
+                        } else {
+                            false
                         }
                     },
-                )
+                decorationBox = { inner ->
+                    Box {
+                        if (value.isEmpty()) {
+                            Text(
+                                text = "Ask, or / for commands",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = edge.faint,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        inner()
+                    }
+                },
+            )
 
-                IconAction(
-                    icon = EdgeIcons.Attach,
-                    contentDescription = "Add attachment",
-                    onClick = onPickAttachment,
-                    modifier = Modifier.padding(bottom = Space.xxs),
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = Space.sm, end = Space.sm, bottom = Space.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Two rows so the send button is the only unweighted element
+                // competing for the trailing edge: inside the left group the
+                // model chip is the single weighted child, which means it is
+                // the one that ellipsizes instead of crushing its neighbours.
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Space.xs),
+                ) {
+                    CircleButton(
+                        icon = EdgeIcons.Attach,
+                        contentDescription = "Add attachment",
+                        onClick = onPickAttachment,
+                        size = Size.controlSm,
+                        iconSize = 18.dp,
+                        fill = scheme.surfaceContainerHigh,
+                    )
+                    ComposerChip(
+                        icon = EdgeIcons.Bolt,
+                        label = modelLabel,
+                        onClick = onModelClick,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    ComposerChip(
+                        icon = EdgeIcons.Sparkle,
+                        label = agentLabel,
+                        onClick = onAgentClick,
+                    )
+                }
+
+                Spacer(Modifier.width(Space.xs))
+
+                CircleButton(
+                    icon = if (streaming) EdgeIcons.Stop else EdgeIcons.Send,
+                    contentDescription = if (streaming) "Stop" else "Send",
+                    onClick = { if (streaming) onStop() else onSend() },
+                    size = Size.controlSm,
+                    iconSize = if (streaming) Size.iconSm else 18.dp,
+                    fill = if (streaming || value.isNotBlank() || attachments.isNotEmpty()) {
+                        scheme.primary
+                    } else {
+                        scheme.surfaceContainerHigh
+                    },
+                    tint = if (streaming || value.isNotBlank() || attachments.isNotEmpty()) {
+                        scheme.onPrimary
+                    } else {
+                        edge.faint
+                    },
+                    enabled = streaming || value.isNotBlank() || attachments.isNotEmpty(),
                 )
             }
-
-            SendButton(
-                streaming = streaming,
-                enabled = value.isNotBlank() || attachments.isNotEmpty(),
-                onSend = onSend,
-                onStop = onStop,
-            )
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = Space.lg, end = Space.lg, bottom = Space.md),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Space.sm),
-        ) {
-            ComposerChip(
-                icon = EdgeIcons.Bolt,
-                label = modelLabel,
-                onClick = onModelClick,
-            )
-            ComposerChip(
-                icon = EdgeIcons.Sparkle,
-                label = agentLabel,
-                onClick = onAgentClick,
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = when {
-                    streaming -> "Tap stop to interrupt"
-                    sendOnEnter -> "Enter to send"
-                    else -> "Enter for newline"
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = edge.faint,
-            )
         }
     }
 }
 
 @Composable
 private fun ComposerChip(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     label: String,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val edge = LocalEdgeColors.current
     Row(
-        modifier = Modifier
+        modifier = modifier
+            .heightIn(min = Size.controlSm)
             .clip(RoundedCornerShape(Radius.full))
-            .background(scheme.surfaceContainer)
+            .background(scheme.surfaceContainerHigh)
             .tappable(onClick = onClick)
-            .padding(horizontal = Space.sm, vertical = Space.xs),
+            .padding(horizontal = Space.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.xs),
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = edge.faint,
+            tint = scheme.onSurfaceVariant,
             modifier = Modifier.size(Size.iconSm),
         )
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = scheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelLarge,
+            color = scheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 150.dp),
-        )
-        Icon(
-            imageVector = EdgeIcons.ChevronUp,
-            contentDescription = null,
-            tint = edge.faint,
-            modifier = Modifier.size(10.dp),
-        )
-    }
-}
-
-@Composable
-private fun SendButton(
-    streaming: Boolean,
-    enabled: Boolean,
-    onSend: () -> Unit,
-    onStop: () -> Unit,
-) {
-    val scheme = MaterialTheme.colorScheme
-    val active = streaming || enabled
-    Box(
-        modifier = Modifier
-            .size(46.dp)
-            .clip(RoundedCornerShape(Radius.lg))
-            .background(if (active) scheme.primary else scheme.surfaceContainerHigh)
-            .tappable(enabled = active) { if (streaming) onStop() else onSend() },
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = if (streaming) EdgeIcons.Stop else EdgeIcons.Send,
-            contentDescription = if (streaming) "Stop" else "Send",
-            tint = if (active) scheme.onPrimary else LocalEdgeColors.current.faint,
-            modifier = Modifier.size(if (streaming) Size.iconSm else Size.icon),
+            modifier = Modifier.widthIn(max = 124.dp),
         )
     }
 }
@@ -311,7 +289,8 @@ private fun SlashCommandList(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(scheme.surfaceContainerLow)
+            .clip(RoundedCornerShape(Radius.lg))
+            .background(scheme.surfaceContainer)
             .padding(vertical = Space.xs),
     ) {
         Text(
@@ -356,7 +335,7 @@ private fun AttachmentStrip(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Space.md, vertical = Space.sm),
+            .padding(bottom = Space.sm),
         horizontalArrangement = Arrangement.spacedBy(Space.sm),
     ) {
         attachments.forEach { attachment ->
@@ -372,7 +351,7 @@ private fun AttachmentThumb(
 ) {
     val scheme = MaterialTheme.colorScheme
     val edge = LocalEdgeColors.current
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
 
     val bitmap by produceState<ImageBitmap?>(initialValue = null, attachment.uri) {
         value = if (attachment.kind == AttachmentKind.Image && attachment.uri != null) {
@@ -385,9 +364,8 @@ private fun AttachmentThumb(
     Box(
         modifier = Modifier
             .size(Size.attachment)
-            .clip(MaterialTheme.shapes.small)
-            .background(scheme.surfaceContainer)
-            .border(1.dp, scheme.outlineVariant, MaterialTheme.shapes.small),
+            .clip(RoundedCornerShape(Radius.sm))
+            .background(scheme.surfaceContainer),
     ) {
         val image = bitmap
         if (image != null) {
@@ -429,7 +407,7 @@ private fun AttachmentThumb(
                 .padding(Space.xxs)
                 .size(20.dp)
                 .clip(RoundedCornerShape(Radius.full))
-                .background(scheme.surfaceContainerHighest)
+                .background(scheme.surfaceContainerHigh)
                 .tappable(onClick = onRemove),
             contentAlignment = Alignment.Center,
         ) {

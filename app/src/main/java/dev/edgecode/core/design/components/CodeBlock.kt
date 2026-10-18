@@ -26,6 +26,7 @@ import dev.edgecode.core.design.EdgeText
 import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
+import dev.edgecode.core.design.Stroke
 import dev.edgecode.core.markdown.CodeColors
 import dev.edgecode.core.markdown.SyntaxHighlighter
 import dev.edgecode.core.util.rememberCopyAction
@@ -70,7 +71,7 @@ fun CodeBlock(
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.small)
             .background(edge.subtleFill)
-            .border(1.dp, scheme.outlineVariant, MaterialTheme.shapes.small),
+            .border(Stroke.hairline, scheme.outlineVariant, MaterialTheme.shapes.small),
     ) {
         Row(
             modifier = Modifier
