@@ -50,8 +50,32 @@ data class Catalog(
     val providers: List<ProviderInfo> = emptyList(),
     val projects: List<ProjectRef> = emptyList(),
 ) {
-    fun model(ref: ModelRef?): ModelInfo? =
-        ref?.let { r -> models.firstOrNull { it.id == r.modelId && it.providerId == r.providerId } }
+    /**
+     * Indexed rather than scanned: the server advertises its whole model
+     * registry — thousands of entries — and this is called during composition.
+     */
+    private val byKey: Map<String, ModelInfo> by lazy {
+        models.associateBy { it.providerId + "/" + it.id }
+    }
+
+    fun model(ref: ModelRef?): ModelInfo? = ref?.let { byKey[it.key] }
+
+    /**
+     * The models that can actually be used.
+     *
+     * The registry lists every provider the server knows about, connected or
+     * not, and only a handful are. Offering the rest is dead weight: picking one
+     * simply fails on send. When the server reports no connection state at all,
+     * or reports everything connected, every model is usable.
+     */
+    val usableModels: List<ModelInfo> by lazy {
+        val connected = providers.filter { it.connected }.map { it.id }.toSet()
+        if (providers.isEmpty() || connected.size == providers.size) {
+            models
+        } else {
+            models.filter { it.providerId in connected }
+        }
+    }
 
     val modelsByProvider: Map<String, List<ModelInfo>>
         get() = models.groupBy { it.providerName }

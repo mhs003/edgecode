@@ -265,6 +265,58 @@ data class ModelRef(
     val variant: String? = null,
 ) {
     val key: String get() = "$providerId/$modelId"
+
+    companion object {
+        /** Parses a stored `provider/model` key. Model ids may contain slashes. */
+        fun parse(key: String): ModelRef? {
+            val cut = key.indexOf('/')
+            if (cut <= 0 || cut == key.lastIndex) return null
+            return ModelRef(key.substring(0, cut), key.substring(cut + 1))
+        }
+    }
+}
+
+/**
+ * Which model each chat is using, and where that choice came from.
+ *
+ * Three layers, because they answer three different questions:
+ * - [pending] is what the user picked in the picker but has not sent with. It is
+ *   what the composer shows, and it is deliberately *not* yet "this chat's
+ *   model" — picking a model and then closing the screen should leave no trace.
+ * - [committed] is the model each chat last actually sent a turn with.
+ * - [recent] is the models last used anywhere, most recent first. A chat with no
+ *   history of its own starts here, which is what makes a new chat open on the
+ *   model the user has been working with.
+ *
+ * This also keeps chats from leaking into one another: the previous global
+ * selection meant picking a model in one chat showed it in every other.
+ */
+data class ModelSelection(
+    val pending: Map<String, ModelRef> = emptyMap(),
+    val committed: Map<String, ModelRef> = emptyMap(),
+    val recent: List<ModelRef> = emptyList(),
+) {
+    fun forSession(sessionId: String): ModelRef? =
+        pending[sessionId] ?: committed[sessionId] ?: recent.firstOrNull()
+
+    /** Records a choice for display, without making it the chat's model yet. */
+    fun choosing(sessionId: String, ref: ModelRef): ModelSelection =
+        copy(pending = pending + (sessionId to ref))
+
+    /**
+     * Commits the model the chat is showing, because a turn was just sent with
+     * it. This is the only place a chat's model or the recent list changes.
+     */
+    fun sent(sessionId: String, ref: ModelRef): ModelSelection = copy(
+        pending = pending - sessionId,
+        committed = committed + (sessionId to ref),
+        recent = (listOf(ref) + recent.filterNot { it.key == ref.key }).take(RecentLimit),
+    )
+
+    companion object {
+        /** How many models the picker offers under "Recently used". */
+        const val RecentLimit = 6
+    }
 }
 
 data class AgentInfo(

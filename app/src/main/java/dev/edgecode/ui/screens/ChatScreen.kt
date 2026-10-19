@@ -132,7 +132,11 @@ fun ChatScreen(
     val catalog by viewModel.catalog.collectAsState()
     val permissions by viewModel.permissions.collectAsState()
     val settings by viewModel.settings_.collectAsState()
-    val selectedModel by viewModel.selectedModel.collectAsState()
+    val selection by viewModel.modelSelection.collectAsState()
+    // Resolved per chat: what was picked here but not sent yet, else what this
+    // chat last sent with, else what was last used anywhere. Without the middle
+    // layer a model picked in one chat showed up in every other.
+    val selectedModel = selection.forSession(sessionId)
     val selectedAgent by viewModel.selectedAgent.collectAsState()
 
     var draft by remember { mutableStateOf("") }
@@ -434,7 +438,7 @@ fun ChatScreen(
             },
             onStop = { viewModel.abort(sessionId) },
             streaming = streaming,
-            modelLabel = viewModel.currentModelLabel(),
+            modelLabel = viewModel.currentModelLabel(sessionId),
             agentLabel = viewModel.agentInfo(selectedAgent)?.name ?: selectedAgent,
             onModelClick = { showModels = true },
             onAgentClick = { showAgents = true },
@@ -459,10 +463,11 @@ fun ChatScreen(
 
     if (showModels) {
         ModelPickerSheet(
-            models = catalog.models,
+            models = catalog.usableModels,
+            recent = selection.recent,
             selected = selectedModel,
             onSelect = { model ->
-                viewModel.setModel(ModelRef(model.providerId, model.id))
+                viewModel.setModel(sessionId, ModelRef(model.providerId, model.id))
                 showModels = false
             },
             onDismiss = { showModels = false },

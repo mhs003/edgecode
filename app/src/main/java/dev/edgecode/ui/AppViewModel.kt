@@ -7,6 +7,7 @@ import dev.edgecode.core.model.AgentInfo
 import dev.edgecode.core.model.Attachment
 import dev.edgecode.core.model.ConnectionState
 import dev.edgecode.core.model.ModelRef
+import dev.edgecode.core.model.ModelSelection
 import dev.edgecode.core.model.PermissionDecision
 import dev.edgecode.core.model.PermissionRequest
 import dev.edgecode.core.model.ServerProfile
@@ -66,8 +67,8 @@ class AppViewModel(
     private val _stack = MutableStateFlow<List<Screen>>(listOf(Screen.Connect))
     val stack: StateFlow<List<Screen>> = _stack.asStateFlow()
 
-    private val _selectedModel = MutableStateFlow<ModelRef?>(null)
-    val selectedModel: StateFlow<ModelRef?> = _selectedModel.asStateFlow()
+    private val _selection = MutableStateFlow(ModelSelection())
+    val modelSelection: StateFlow<ModelSelection> = _selection.asStateFlow()
 
     private val _selectedAgent = MutableStateFlow("build")
     val selectedAgent: StateFlow<String> = _selectedAgent.asStateFlow()
@@ -79,6 +80,12 @@ class AppViewModel(
 
     init {
         val saved = settings.state.value
+        _selection.value = ModelSelection(
+            committed = saved.sessionModels.mapNotNull { (sessionId, key) ->
+                ModelRef.parse(key)?.let { sessionId to it }
+            }.toMap(),
+            recent = saved.recentModels.mapNotNull(ModelRef::parse),
+        )
         if (saved.hasSavedServer) {
             scope.launch {
                 repository.connect(
@@ -272,12 +279,25 @@ class AppViewModel(
 
     fun send(sessionId: String, text: String, attachments: List<Attachment>) {
         if (text.isBlank() && attachments.isEmpty()) return
+
+        // This is the moment a model choice becomes the chat's model. Picking
+        // one in the picker only stages it; sending is what proves the intent,
+        // and it is also what makes the model the default for a new chat.
+        val selection = _selection.value
+        val model = selection.forSession(sessionId)
+        if (model != null) {
+            val next = selection.sent(sessionId, model)
+            _selection.value = next
+            settings.setRecentModels(next.recent.map { it.key })
+            settings.setSessionModel(sessionId, model.key)
+        }
+
         repository.sendPrompt(
             sessionId = sessionId,
             text = text,
             attachments = attachments,
             agent = _selectedAgent.value,
-            model = _selectedModel.value,
+            model = model,
         )
     }
 
@@ -294,17 +314,18 @@ class AppViewModel(
         _selectedAgent.value = agent
     }
 
-    fun setModel(ref: ModelRef?) {
-        _selectedModel.value = ref
+    /** Stages a model for the current chat. It is committed when a turn is sent. */
+    fun setModel(sessionId: String, ref: ModelRef) {
+        _selection.value = _selection.value.choosing(sessionId, ref)
     }
 
     fun agentInfo(id: String): AgentInfo? =
         repository.catalog.value.agents.firstOrNull { it.id == id }
 
-    fun currentModelLabel(): String {
+    fun currentModelLabel(sessionId: String): String {
         val catalog = repository.catalog.value
-        val ref = _selectedModel.value
-        val info = catalog.model(ref) ?: catalog.defaultModel
+        val info = catalog.model(_selection.value.forSession(sessionId))
+            ?: catalog.defaultModel
             ?: return "No model"
         return info.name
     }

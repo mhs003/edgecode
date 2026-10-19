@@ -21,6 +21,10 @@ data class Settings(
     val showReasoning: Boolean = true,
     val expandTools: Boolean = false,
     val sendOnEnter: Boolean = true,
+    /** Model keys (`provider/model`), most recently used first. */
+    val recentModels: List<String> = emptyList(),
+    /** The model each chat last sent a turn with, keyed by session id. */
+    val sessionModels: Map<String, String> = emptyMap(),
 ) {
     val hasSavedServer: Boolean get() = serverUrl.isNotBlank()
 }
@@ -43,6 +47,19 @@ class SettingsStore(context: Context) {
         showReasoning = prefs.getBoolean(KEY_REASONING, true),
         expandTools = prefs.getBoolean(KEY_TOOLS, false),
         sendOnEnter = prefs.getBoolean(KEY_SEND_ON_ENTER, true),
+        recentModels = prefs.getString(KEY_RECENT_MODELS, "").orEmpty()
+            .lineSequence()
+            .filter { it.isNotBlank() }
+            .toList(),
+        sessionModels = prefs.getString(KEY_SESSION_MODELS, "").orEmpty()
+            .lineSequence()
+            .filter { it.isNotBlank() }
+            .mapNotNull { line ->
+                val cut = line.indexOf('\t')
+                if (cut <= 0 || cut == line.lastIndex) null
+                else line.substring(0, cut) to line.substring(cut + 1)
+            }
+            .toMap(),
     )
 
     fun setTheme(mode: ThemeMode) {
@@ -79,6 +96,25 @@ class SettingsStore(context: Context) {
         _state.value = _state.value.copy(sendOnEnter = value)
     }
 
+    fun setRecentModels(keys: List<String>) {
+        prefs.edit().putString(KEY_RECENT_MODELS, keys.joinToString("\n")).apply()
+        _state.value = _state.value.copy(recentModels = keys)
+    }
+
+    /**
+     * Remembers a chat's model. Older chats are dropped once the map is large
+     * enough to be stale, so the preference cannot grow without bound.
+     */
+    fun setSessionModel(sessionId: String, modelKey: String) {
+        val next = (_state.value.sessionModels - sessionId) + (sessionId to modelKey)
+        val capped = next.entries.toList().takeLast(SESSION_MODEL_LIMIT)
+            .associate { it.key to it.value }
+        prefs.edit()
+            .putString(KEY_SESSION_MODELS, capped.entries.joinToString("\n") { "${it.key}\t${it.value}" })
+            .apply()
+        _state.value = _state.value.copy(sessionModels = capped)
+    }
+
     private companion object {
         const val KEY_THEME = "theme"
         const val KEY_URL = "server.url"
@@ -87,5 +123,8 @@ class SettingsStore(context: Context) {
         const val KEY_REASONING = "chat.reasoning"
         const val KEY_TOOLS = "chat.tools"
         const val KEY_SEND_ON_ENTER = "chat.sendOnEnter"
+        const val KEY_RECENT_MODELS = "chat.recentModels"
+        const val KEY_SESSION_MODELS = "chat.sessionModels"
+        const val SESSION_MODEL_LIMIT = 60
     }
 }

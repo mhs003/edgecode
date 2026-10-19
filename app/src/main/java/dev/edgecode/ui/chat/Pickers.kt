@@ -42,6 +42,7 @@ import dev.edgecode.core.design.components.tappable
 import dev.edgecode.core.model.AgentInfo
 import dev.edgecode.core.model.ModelInfo
 import dev.edgecode.core.model.ModelRef
+import dev.edgecode.core.util.Fuzzy
 import dev.edgecode.core.util.formatTokens
 
 /**
@@ -49,11 +50,22 @@ import dev.edgecode.core.util.formatTokens
  *
  * Grouped by provider and showing context window and price side by side, because
  * choosing a model is a cost-and-capability decision, not a name lookup.
+ *
+ * The list is what the server says is usable, not its whole registry: that
+ * registry carries every provider it knows about — thousands of models — and
+ * only a few are connected. Offering the rest made the sheet slow to open and
+ * offered choices that could only fail on send.
+ *
+ * Typing switches to a single ranked list rather than filtering a grouped one,
+ * because relevance and grouping want different orders. Matching is fuzzy and
+ * spans the model name, its provider and its id, so "glm commandcode" and
+ * "commandcode glm" both find the same row.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ModelPickerSheet(
     models: List<ModelInfo>,
+    recent: List<ModelRef>,
     selected: ModelRef?,
     onSelect: (ModelInfo) -> Unit,
     onDismiss: () -> Unit,
@@ -63,17 +75,17 @@ fun ModelPickerSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var query by remember { mutableStateOf("") }
 
-    val filtered = remember(models, query) {
+    val byKey = remember(models) { models.associateBy { it.key } }
+    val recentModels = remember(recent, byKey) { recent.mapNotNull { byKey[it.key] } }
+    val grouped = remember(models) { models.groupBy { it.providerName } }
+    val matches = remember(models, query) {
         if (query.isBlank()) {
-            models
+            emptyList()
         } else {
-            models.filter {
-                it.name.contains(query, ignoreCase = true) ||
-                    it.providerName.contains(query, ignoreCase = true)
-            }
+            Fuzzy.rank(query, models) { listOf(it.name, it.providerName) }
         }
     }
-    val grouped = remember(filtered) { filtered.groupBy { it.providerName } }
+    val selectedKey = selected?.key
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -83,50 +95,92 @@ fun ModelPickerSheet(
     ) {
         SheetHeader(
             title = "Model",
-            subtitle = "${models.size} available on this server",
+            subtitle = "${models.size} models on connected providers",
             onClose = onDismiss,
         )
 
         EdgeTextField(
             value = query,
             onValueChange = { query = it },
-            placeholder = "Filter models",
+            placeholder = "Search models and providers",
             leadingIcon = EdgeIcons.Search,
             modifier = Modifier.padding(horizontal = Space.gutter, vertical = Space.sm),
         )
 
         LazyColumn(modifier = Modifier.heightIn(max = 520.dp)) {
-            grouped.forEach { (provider, providerModels) ->
-                item(key = "header-$provider") {
-                    Text(
-                        text = provider.uppercase(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = edge.faint,
-                        modifier = Modifier.padding(
-                            start = Space.gutter,
-                            top = Space.lg,
-                            bottom = Space.sm,
-                        ),
-                    )
+            if (query.isNotBlank()) {
+                if (matches.isEmpty()) {
+                    item(key = "no-match") {
+                        Text(
+                            text = "No model matches \"$query\"",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = edge.faint,
+                            modifier = Modifier.padding(
+                                start = Space.gutter,
+                                end = Space.gutter,
+                                top = Space.lg,
+                            ),
+                        )
+                    }
                 }
-                items(providerModels, key = { it.providerId + "/" + it.id }) { model ->
+                items(matches, key = { it.key }) { model ->
                     ModelRow(
                         model = model,
-                        isSelected = selected?.let { it.providerId == model.providerId && it.modelId == model.id }
-                            ?: model.isDefault,
+                        isSelected = model.key == selectedKey,
+                        showProvider = true,
                         onSelect = { onSelect(model) },
                     )
                 }
+            } else {
+                if (recentModels.isNotEmpty()) {
+                    item(key = "recent-header") { PickerLabel("Recently used") }
+                    items(recentModels, key = { "recent-" + it.key }) { model ->
+                        ModelRow(
+                            model = model,
+                            isSelected = model.key == selectedKey,
+                            showProvider = true,
+                            onSelect = { onSelect(model) },
+                        )
+                    }
+                }
+                grouped.forEach { (provider, providerModels) ->
+                    item(key = "header-$provider") { PickerLabel(provider) }
+                    items(providerModels, key = { it.key }) { model ->
+                        ModelRow(
+                            model = model,
+                            isSelected = model.key == selectedKey,
+                            showProvider = false,
+                            onSelect = { onSelect(model) },
+                        )
+                    }
+                }
             }
-            item { Spacer(Modifier.height(Space.xxl)) }
+            item(key = "tail") { Spacer(Modifier.height(Space.xxl)) }
         }
     }
+}
+
+private val ModelInfo.key: String get() = "$providerId/$id"
+
+@Composable
+private fun PickerLabel(text: String) {
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        color = LocalEdgeColors.current.faint,
+        modifier = Modifier.padding(
+            start = Space.gutter,
+            top = Space.lg,
+            bottom = Space.sm,
+        ),
+    )
 }
 
 @Composable
 private fun ModelRow(
     model: ModelInfo,
     isSelected: Boolean,
+    showProvider: Boolean,
     onSelect: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -150,9 +204,16 @@ private fun ModelRow(
                     color = scheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
-                if (model.isDefault) {
-                    Chip(text = "Default", accent = scheme.primary)
+                if (showProvider) {
+                    Text(
+                        text = model.providerName,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = edge.faint,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
             Spacer(Modifier.height(Space.xxs))
