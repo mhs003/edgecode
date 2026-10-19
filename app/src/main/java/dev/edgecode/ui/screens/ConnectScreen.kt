@@ -10,10 +10,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +40,7 @@ import dev.edgecode.core.design.EdgeIcons
 import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
+import dev.edgecode.core.design.Stroke
 import dev.edgecode.core.design.components.EdgeButton
 import dev.edgecode.core.design.components.EdgeSecondaryButton
 import dev.edgecode.core.design.components.EdgeTextField
@@ -80,6 +83,9 @@ fun ConnectScreen(
     var removing by remember { mutableStateOf<SavedConnection?>(null) }
 
     val connecting = connection is ConnectionState.Connecting
+    // Which saved server is being dialled, so that row can say so. The state
+    // carries the profile, so no separate "connecting to" flag is needed.
+    val connectingId = (connection as? ConnectionState.Connecting)?.profile?.id
     val failure = (connection as? ConnectionState.Failed)?.message
 
     Column(
@@ -101,6 +107,7 @@ fun ConnectScreen(
                     saved.forEach { savedConnection ->
                         SavedRow(
                             connection = savedConnection,
+                            connecting = connectingId == savedConnection.id,
                             enabled = !connecting,
                             onConnect = {
                                 if (savedConnection.needsPassword) {
@@ -246,10 +253,15 @@ fun ConnectScreen(
 /**
  * A server in the saved list. The last failure, when there is one, takes the
  * place of the relative time so a dead server reads as dead before it is tapped.
+ *
+ * While this server is the one being dialled the meta line says so and the
+ * trailing control becomes a spinner. Tapping a row and getting no feedback for
+ * the length of a connection attempt reads as a dead tap.
  */
 @Composable
 private fun SavedRow(
     connection: SavedConnection,
+    connecting: Boolean,
     enabled: Boolean,
     onConnect: () -> Unit,
     onRemove: () -> Unit,
@@ -283,7 +295,13 @@ private fun SavedRow(
             )
             Spacer(Modifier.height(Space.xxs))
             val status = connection.lastStatus
-            if (status != null) {
+            if (connecting) {
+                Text(
+                    text = "Connecting…",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.primary,
+                )
+            } else if (status != null) {
                 Text(
                     text = status,
                     style = MaterialTheme.typography.labelSmall,
@@ -300,22 +318,32 @@ private fun SavedRow(
             }
         }
 
-        Box {
-            IconAction(
-                icon = EdgeIcons.More,
-                contentDescription = "Connection actions",
-                onClick = { menu = true },
-                size = Size.touchSm,
-                iconSize = Size.iconSm,
+        if (connecting) {
+            CircularProgressIndicator(
+                modifier = Modifier
+                    .padding(horizontal = Space.md)
+                    .size(Size.iconSm),
+                color = scheme.primary,
+                strokeWidth = Stroke.thin,
             )
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(
-                    text = { Text("Remove", color = scheme.error) },
-                    onClick = {
-                        menu = false
-                        onRemove()
-                    },
+        } else {
+            Box {
+                IconAction(
+                    icon = EdgeIcons.More,
+                    contentDescription = "Connection actions",
+                    onClick = { menu = true },
+                    size = Size.touchSm,
+                    iconSize = Size.iconSm,
                 )
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Remove", color = scheme.error) },
+                        onClick = {
+                            menu = false
+                            onRemove()
+                        },
+                    )
+                }
             }
         }
     }
