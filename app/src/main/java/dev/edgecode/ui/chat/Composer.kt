@@ -249,23 +249,34 @@ private fun ComposerChip(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
+    // The pill is 38dp, which is under the 48dp minimum touch target, so the
+    // gesture sits on a taller box and the pill is drawn centred inside it.
+    // Otherwise a tap just outside the pill — the most natural place to aim —
+    // does nothing. The row is already 48dp tall from the circular controls, so
+    // this costs no layout.
     Box(
         modifier = modifier
-            .heightIn(min = Size.controlSm)
-            .clip(RoundedCornerShape(Radius.full))
-            .background(scheme.surfaceContainerHigh)
-            .tappable(onClick = onClick)
-            .padding(horizontal = Space.md),
+            .heightIn(min = Size.touch)
+            .tappable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = scheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 132.dp),
-        )
+        Box(
+            modifier = Modifier
+                .heightIn(min = Size.controlSm)
+                .clip(RoundedCornerShape(Radius.full))
+                .background(scheme.surfaceContainerHigh)
+                .padding(horizontal = Space.md),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = scheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 132.dp),
+            )
+        }
     }
 }
 
