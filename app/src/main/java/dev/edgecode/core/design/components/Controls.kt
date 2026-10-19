@@ -148,20 +148,31 @@ fun CircleButton(
 ) {
     val scheme = MaterialTheme.colorScheme
     val edge = LocalEdgeColors.current
+    // The touch target is deliberately larger than the circle. Attaching the
+    // gesture to the visual meant the hit area *was* the 38dp control, and a tap
+    // a few dp outside the rim did nothing — worst at the screen edge, where the
+    // send button sits. The visual size is unchanged; only the target grows, and
+    // never below the 48dp platform minimum.
     Box(
         modifier = modifier
-            .size(size)
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.full))
-            .background(if (enabled) fill ?: scheme.surfaceContainer else scheme.surfaceContainerLow)
+            .size(maxOf(size, Size.touch))
             .tappable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = if (enabled) tint ?: scheme.onSurfaceVariant else edge.faint,
-            modifier = Modifier.size(iconSize),
-        )
+        Box(
+            modifier = Modifier
+                .size(size)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.full))
+                .background(if (enabled) fill ?: scheme.surfaceContainer else scheme.surfaceContainerLow),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = if (enabled) tint ?: scheme.onSurfaceVariant else edge.faint,
+                modifier = Modifier.size(iconSize),
+            )
+        }
     }
 }
 
