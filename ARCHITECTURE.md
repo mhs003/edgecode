@@ -196,13 +196,30 @@ only against a reading of the spec.
 
 - A message is `{info, parts}` — the two are siblings, and the message is
   discriminated by `info.role`.
+- **A user message and an assistant message do not arrive the same way.** An
+  assistant reply streams its body as parts on the same message. A user message
+  arrives as an `info`-only frame with *no* `parts` key, its body follows
+  separately as a `message.part.updated`, and the frame is re-sent after every
+  update. Reducing a user message like an assistant one drops its text and the
+  later frames blank whatever survives, which presents as a transcript of only
+  the agent's replies.
 - A user message carries `model: {providerID, modelID}`; an assistant message
   carries flat `providerID`/`modelID`. Reading one shape loses the other side.
 - A part is still streaming while `time.end` is absent.
+- **A reply is not a series of whole parts.** The server sends the part once,
+  empty, then every character as a separate `message.part.delta`, and only
+  re-sends the part whole at the end. Reducing only `message.part.updated` makes
+  the transcript jump in a handful of steps instead of streaming. Because the
+  final whole part is the server's own accumulation, appending deltas and then
+  letting that frame replace the part outright is self-correcting — no
+  reconciliation needed.
 - The event payload is under `properties`, not `data`.
 - A part id is a server-side `prt_…` identity. Sending the client's message id
   on a part is rejected with a 400.
 - Step boundaries are structure, not content, and are not mapped at all.
+- The server **keeps a client-supplied `messageID`** if it carries the `msg_`
+  prefix. That is what lets a sent turn appear instantly and the echo merge onto
+  the same row instead of duplicating it.
 
 **Failure degrades, never throws.** An unknown part type becomes a `Part.Note`
 naming it and an unmapped event type is dropped. The server adds union variants
