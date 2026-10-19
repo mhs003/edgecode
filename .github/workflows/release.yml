@@ -1,0 +1,160 @@
+name: Release
+
+# Every push to the default branch is tested. A release is cut only when the
+# version in version.properties has no matching tag yet, so bumping the version
+# is what publishes a build — see AGENTS.md.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run the JVM tests
+        run: ./gradlew --no-daemon testDebugUnitTest
+
+  release:
+    name: Build and publish
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Tags decide whether this version was already published.
+          fetch-depth: 0
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Read the version
+        id: version
+        run: |
+          name=$(sed -n 's/^versionName=//p' version.properties)
+          code=$(sed -n 's/^versionCode=//p' version.properties)
+          if [ -z "$name" ] || [ -z "$code" ]; then
+            echo "version.properties is missing versionName or versionCode" >&2
+            exit 1
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "tag=v$name" >> "$GITHUB_OUTPUT"
+          echo "Building EdgeCode $name ($code)"
+
+      - name: Decide whether to release
+        id: check
+        run: |
+          tag="${{ steps.version.outputs.tag }}"
+          if git rev-parse -q --verify "refs/tags/$tag" > /dev/null; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "$tag already exists — publishing nothing."
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "$tag is new — publishing."
+          fi
+
+      - name: Build the release APK
+        if: steps.check.outputs.release == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+            export KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
+          else
+            echo "::warning::No KEYSTORE_BASE64 secret; the release APK is signed with the debug key."
+          fi
+          ./gradlew --no-daemon assembleRelease
+
+      # Catches the failure that matters: an unsigned or debug-only APK cannot
+      # be installed over the previous release.
+      - name: Verify the APK is signed
+        if: steps.check.outputs.release == 'true'
+        run: |
+          apk=app/build/outputs/apk/release/app-release.apk
+          build_tools=$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)
+          "$ANDROID_HOME/build-tools/$build_tools/apksigner" verify --print-certs "$apk" \
+            | head -4
+
+      - name: Name the artifact
+        if: steps.check.outputs.release == 'true'
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk \
+             "EdgeCode-${{ steps.version.outputs.name }}.apk"
+
+      - name: Upload the APK
+        if: steps.check.outputs.release == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: EdgeCode-${{ steps.version.outputs.name }}
+          path: EdgeCode-${{ steps.version.outputs.name }}.apk
+          if-no-files-found: error
+
+      - name: Cut the release notes from the changelog
+        if: steps.check.outputs.release == 'true'
+        run: |
+          python3 - "${{ steps.version.outputs.name }}" > notes.md <<'PY'
+          import re
+          import sys
+
+          version = sys.argv[1]
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          heading = re.compile(r"^## \[" + re.escape(version) + r"\].*$", re.M)
+          match = heading.search(text)
+          if not match:
+              print(f"Release {version}. See CHANGELOG.md.")
+              raise SystemExit
+          body = text[match.end():]
+          following = re.search(r"^## \[", body, re.M)
+          if following:
+              body = body[: following.start()]
+          print(body.strip())
+          PY
+          cat notes.md
+
+      - name: Publish the release
+        if: steps.check.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            "EdgeCode-${{ steps.version.outputs.name }}.apk" \
+            --title "EdgeCode ${{ steps.version.outputs.name }}" \
+            --target "$GITHUB_SHA" \
+            --notes-file notes.md
