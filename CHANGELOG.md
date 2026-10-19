@@ -10,6 +10,13 @@ release workflow uses the section below as the release notes.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-19
+
+### Changed
+
+- Documented building and debugging on-device with TAD, with the Gradle
+  commands kept as the desktop alternative.
+
 ## [1.0.0] - 2026-10-19
 
 First release: an Android client for an OpenCode v1 server — sessions, live
