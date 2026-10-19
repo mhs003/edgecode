@@ -34,9 +34,21 @@ data class SessionChatState(
     val messages: List<ChatMessage> = emptyList(),
     val loading: Boolean = false,
     val error: String? = null,
+    /**
+     * A turn has been sent and the server has not gone idle since.
+     *
+     * The gap between sending and the first token can run to seconds while the
+     * agent loads tools and prepares, and during it there is no message to
+     * watch. This covers that gap; [isStreaming] covers the rest of the turn.
+     */
+    val working: Boolean = false,
 ) {
     val isStreaming: Boolean
         get() = (messages.lastOrNull() as? ChatMessage.Assistant)?.streaming == true
+
+    /** What the transcript should show a working indicator for, if anything. */
+    val isWorking: Boolean
+        get() = working || isStreaming
 
     val lastAssistant: ChatMessage.Assistant?
         get() = messages.lastOrNull { it is ChatMessage.Assistant } as? ChatMessage.Assistant
@@ -216,7 +228,15 @@ class AppRepository(
 
         val sessionId = event.sessionIdOrNull() ?: return
         chats[sessionId]?.update { current ->
-            current.copy(messages = ChatReducer.reduceMessages(current.messages, event))
+            current.copy(
+                messages = ChatReducer.reduceMessages(current.messages, event),
+                // `session.idle` is the server saying the turn is over — after
+                // the last token, not after the last event we happened to see.
+                working = when (event) {
+                    is ServerEvent.SessionIdle, is ServerEvent.SessionFailed -> false
+                    else -> current.working
+                },
+            )
         }
     }
 
@@ -316,7 +336,7 @@ class AppRepository(
             attachments = attachments,
         )
         chats[sessionId]?.update { current ->
-            current.copy(messages = current.messages + optimistic, error = null)
+            current.copy(messages = current.messages + optimistic, error = null, working = true)
         }
 
         scope.launch {
@@ -328,6 +348,7 @@ class AppRepository(
                     current.copy(
                         messages = current.messages.filterNot { it.id == messageId },
                         error = error.message ?: "Message failed to send",
+                        working = false,
                     )
                 }
             }
@@ -336,7 +357,15 @@ class AppRepository(
 
     fun runCommand(sessionId: String, command: String, arguments: String) {
         val client = api ?: return
-        scope.launch { runCatching { client.runCommand(sessionId, command, arguments) } }
+        chats[sessionId]?.update { it.copy(working = true) }
+        scope.launch {
+            runCatching { client.runCommand(sessionId, command, arguments) }
+                .onFailure { error ->
+                    chats[sessionId]?.update {
+                        it.copy(working = false, error = error.message ?: "Command failed")
+                    }
+                }
+        }
     }
 
     fun abort(sessionId: String) {

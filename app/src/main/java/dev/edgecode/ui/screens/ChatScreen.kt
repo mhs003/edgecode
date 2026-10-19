@@ -80,6 +80,7 @@ import dev.edgecode.ui.chat.Composer
 import dev.edgecode.ui.chat.MessageRow
 import dev.edgecode.ui.chat.ModelPickerSheet
 import dev.edgecode.ui.chat.PermissionCard
+import dev.edgecode.ui.chat.WorkingIndicator
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -183,6 +184,13 @@ fun ChatScreen(
 
     val streaming = state.isStreaming
     val messages = state.messages
+    val working = state.isWorking
+    // While a reply streams, its message knows the model that actually served
+    // it. Before the first token there is no such message, so fall back to the
+    // chat's own model — which sending has just committed.
+    val workingModel = catalog.model(
+        (messages.lastOrNull() as? ChatMessage.Assistant)?.takeIf { it.streaming }?.model,
+    ) ?: catalog.model(selectedModel)
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
@@ -211,12 +219,14 @@ fun ChatScreen(
         ?.sumOf { (it as? Part.Text)?.text?.length ?: 0 }
         ?: 0
 
-    LaunchedEffect(messages.size, streamingGrowth) {
+    LaunchedEffect(messages.size, streamingGrowth, working) {
         // Do not yank the list while a gesture or fling is in flight: a reader
         // scrolling away mid-stream must win over the next token. Following is
         // re-armed when that scroll settles at the end.
         if (messages.isNotEmpty() && followEnd.value && !listState.isScrollInProgress) {
-            listState.scrollToEnd(messages.lastIndex)
+            // The indicator is one past the last message, so the newest turn and
+            // the fact that it is still being worked on arrive together.
+            listState.scrollToEnd(if (working) messages.size else messages.lastIndex)
         }
     }
 
@@ -267,7 +277,9 @@ fun ChatScreen(
                     )
                 }
 
-                messages.isEmpty() -> Box(
+                // A command can start a turn before any message exists, so
+                // "working" keeps the transcript — and the indicator — on screen.
+                messages.isEmpty() && !working -> Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -300,7 +312,27 @@ fun ChatScreen(
                                 .widthIn(max = Space.measure),
                             showReasoning = settings.showReasoning,
                             expandTools = settings.expandTools,
+                            // The wire carries the model as provider/id; the
+                            // catalogue is the only place a display name lives.
+                            modelLabel = (message as? ChatMessage.Assistant)
+                                ?.model
+                                ?.let { catalog.model(it)?.name },
                         )
+                    }
+
+                    // Part of the transcript, not an overlay: it sits past the
+                    // last turn and scrolls away with it, so it never covers
+                    // text and never competes with the composer.
+                    if (working) {
+                        item(key = "working") {
+                            WorkingIndicator(
+                                model = workingModel?.name,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = Space.lg, vertical = Space.md)
+                                    .widthIn(max = Space.measure),
+                            )
+                        }
                     }
                 }
             }

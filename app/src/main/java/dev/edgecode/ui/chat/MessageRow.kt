@@ -1,25 +1,39 @@
 package dev.edgecode.ui.chat
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import dev.edgecode.core.design.EdgeIcons
 import dev.edgecode.core.design.LocalEdgeColors
+import dev.edgecode.core.design.Motion
 import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
@@ -30,6 +44,7 @@ import dev.edgecode.core.model.Attachment
 import dev.edgecode.core.model.AttachmentKind
 import dev.edgecode.core.model.ChatMessage
 import dev.edgecode.core.model.Part
+import dev.edgecode.core.util.formatResponseMeta
 import dev.edgecode.core.util.rememberCopyAction
 
 /**
@@ -46,6 +61,7 @@ fun MessageRow(
     modifier: Modifier = Modifier,
     showReasoning: Boolean = true,
     expandTools: Boolean = false,
+    modelLabel: String? = null,
 ) {
     when (message) {
         is ChatMessage.User -> UserMessageRow(message, modifier)
@@ -54,6 +70,7 @@ fun MessageRow(
             modifier = modifier,
             showReasoning = showReasoning,
             expandTools = expandTools,
+            modelLabel = modelLabel,
         )
     }
 }
@@ -100,6 +117,7 @@ private fun AssistantMessageRow(
     modifier: Modifier = Modifier,
     showReasoning: Boolean,
     expandTools: Boolean,
+    modelLabel: String?,
 ) {
     val edge = LocalEdgeColors.current
     val copy = rememberCopyAction()
@@ -109,7 +127,6 @@ private fun AssistantMessageRow(
     val plainText = remember(message.parts) {
         message.parts.filterIsInstance<Part.Text>().joinToString("\n\n") { it.text }
     }
-
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(Space.md),
@@ -123,28 +140,51 @@ private fun AssistantMessageRow(
                 isLast = index == message.parts.lastIndex,
             )
         }
-
         if (message.error != null) {
             ErrorNotice(message = message.error)
         }
-
-        // Nothing on a settled turn except the one action worth having. No meta
-        // footer: the turn's model and cost are session facts, and repeating
-        // them under every reply turns the transcript into a log.
-        if (!message.streaming && plainText.isNotBlank()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconAction(
-                    icon = EdgeIcons.Copy,
-                    contentDescription = "Copy reply",
-                    onClick = { copy("reply", plainText) },
-                    size = Size.touchSm,
-                    iconSize = Size.iconSm,
-                    tint = edge.faint,
-                    // Pulled left by half the difference between the touch
-                    // target and the glyph, so the icon optically lines up with
-                    // the text it belongs to rather than with its own padding.
-                    modifier = Modifier.offset(x = -(Size.touchSm - Size.iconSm) / 2),
-                )
+        // A settled turn keeps one action and the facts about that reply: which
+        // model served it, how much it produced, how fast. Cost stays a session
+        // figure, and everything else that describes the session belongs in the
+        // menu rather than repeated under every turn.
+        if (!message.streaming) {
+            val meta = formatResponseMeta(
+                model = modelLabel,
+                outputTokens = message.tokens.output,
+                startedAt = message.createdAt,
+                completedAt = message.completedAt,
+            )
+            if (plainText.isNotBlank() || meta != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Space.xs),
+                ) {
+                    if (plainText.isNotBlank()) {
+                        IconAction(
+                            icon = EdgeIcons.Copy,
+                            contentDescription = "Copy reply",
+                            onClick = { copy("reply", plainText) },
+                            size = Size.touchSm,
+                            iconSize = Size.iconSm,
+                            tint = edge.faint,
+                            // Pulled left by half the difference between the
+                            // touch target and the glyph, so the icon optically
+                            // lines up with the text it belongs to rather than
+                            // with its own padding.
+                            modifier = Modifier.offset(x = -(Size.touchSm - Size.iconSm) / 2),
+                        )
+                    }
+                    if (meta != null) {
+                        Text(
+                            text = meta,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = edge.faint,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                    }
+                }
             }
         }
     }
@@ -179,5 +219,87 @@ private fun AttachmentBubble(attachment: Attachment) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+/**
+ * The agent is working on this turn.
+ *
+ * Shown from the moment a prompt is sent until the server reports the session
+ * idle — the gap between sending and the first token is the longest stretch of
+ * silence in the app, because the agent may be loading tools and thinking with
+ * nothing yet to show.
+ *
+ * Three dots breathing in sequence, low contrast and fixed in place. It is the
+ * last item in the transcript rather than something floating over it, so it
+ * scrolls with the reply and can never cover text.
+ */
+@Composable
+fun WorkingIndicator(
+    model: String?,
+    modifier: Modifier = Modifier,
+) {
+    val faint = LocalEdgeColors.current.faint
+    val transition = rememberInfiniteTransition(label = "working")
+
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Space.xxs),
+    ) {
+        repeat(3) { index ->
+            // Each dot peaks at a later point in the same cycle, which reads as
+            // a wave travelling left to right. The phase lives in the keyframes
+            // so all three share one repeating cycle rather than each running
+            // its own offset spec.
+            val peak = index * 200
+            val alpha by transition.animateFloat(
+                initialValue = 0.22f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = keyframes {
+                        durationMillis = 1200
+                        0.22f at 0
+                        0.22f at peak
+                        1f at (peak + 180)
+                        0.22f at (peak + 420)
+                    },
+                    repeatMode = RepeatMode.Restart,
+                ),
+                label = "alpha$index",
+            )
+            val bob by transition.animateFloat(
+                initialValue = 0f,
+                targetValue = -3f,
+                animationSpec = infiniteRepeatable(
+                    animation = keyframes {
+                        durationMillis = 1200
+                        0f at 0
+                        0f at peak
+                        -3f at (peak + 180)
+                        0f at (peak + 420)
+                    },
+                    repeatMode = RepeatMode.Restart,
+                ),
+                label = "bob$index",
+            )
+            Box(
+                modifier = Modifier
+                    .offset(y = bob.dp)
+                    .size(Size.statusDot)
+                    .alpha(alpha)
+                    .background(faint, CircleShape),
+            )
+        }
+
+        if (!model.isNullOrBlank()) {
+            Spacer(Modifier.width(Space.xs))
+            Text(
+                text = model,
+                style = MaterialTheme.typography.labelMedium,
+                color = faint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
