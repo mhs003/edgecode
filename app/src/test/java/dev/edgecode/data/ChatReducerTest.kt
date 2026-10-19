@@ -284,12 +284,118 @@ class ChatReducerTest {
         assertEquals(1, (messages.single() as ChatMessage.User).attachments.size)
     }
 
+    // A reply is not sent as a series of whole parts. The server sends the part
+    // once, empty, and then every character as a delta; the whole part is only
+    // re-sent at the end. Ignoring deltas meant the transcript updated a handful
+    // of times per turn instead of continuously, which reads as no streaming.
+
     @Test
-    fun `a removal takes the user message with it`() {
+    fun `deltas accumulate into the part being written`() {
+        var messages = ChatReducer.reduceMessages(
+            emptyList(),
+            ServerEvent.MessageUpserted(session, assistant("m1")),
+        )
+        messages = ChatReducer.reduceMessages(
+            messages,
+            ServerEvent.PartUpserted(session, "m1", Part.Text("p1", "", streaming = true)),
+        )
+        listOf("Hel", "lo ", "there").forEach { chunk ->
+            messages = ChatReducer.reduceMessages(
+                messages,
+                ServerEvent.PartDelta(session, "m1", "p1", "text", chunk),
+            )
+        }
+
+        val part = (messages.single() as ChatMessage.Assistant).parts.single() as Part.Text
+        assertEquals("Hello there", part.text)
+        assertTrue(part.streaming)
+    }
+
+    @Test
+    fun `a delta arriving before its part still starts it`() {
+        var messages = ChatReducer.reduceMessages(
+            emptyList(),
+            ServerEvent.MessageUpserted(session, assistant("m1")),
+        )
+        messages = ChatReducer.reduceMessages(
+            messages,
+            ServerEvent.PartDelta(session, "m1", "p1", "text", "early"),
+        )
+
+        val part = (messages.single() as ChatMessage.Assistant).parts.single() as Part.Text
+        assertEquals("early", part.text)
+    }
+
+    @Test
+    fun `the final whole part replaces the accumulated result`() {
+        // This is what makes delta accumulation safe: the server's own
+        // accumulation always arrives last and wins outright.
+        var messages = ChatReducer.reduceMessages(
+            emptyList(),
+            ServerEvent.MessageUpserted(session, assistant("m1")),
+        )
+        messages = ChatReducer.reduceMessages(
+            messages,
+            ServerEvent.PartUpserted(session, "m1", Part.Text("p1", "", streaming = true)),
+        )
+        messages = ChatReducer.reduceMessages(
+            messages,
+            ServerEvent.PartDelta(session, "m1", "p1", "text", "Hello"),
+        )
+        messages = ChatReducer.reduceMessages(
+            messages,
+            ServerEvent.PartUpserted(session, "m1", Part.Text("p1", "Hello")),
+        )
+
+        val part = (messages.single() as ChatMessage.Assistant).parts.single() as Part.Text
+        assertEquals("Hello", part.text)
+        assertFalse(part.streaming)
+    }
+
+    @Test
+    fun `deltas accumulate into a reasoning part too`() {
+        var messages = ChatReducer.reduceMessages(
+            emptyList(),
+            ServerEvent.MessageUpserted(session, assistant("m1")),
+        )
+        messages = ChatReducer.reduceMessages(
+            messages,
+            ServerEvent.PartUpserted(session, "m1", Part.Reasoning("p2", "")),
+        )
+        messages = ChatReducer.reduceMessages(
+            messages,
+            ServerEvent.PartDelta(session, "m1", "p2", "text", "thinking"),
+        )
+
+        val part = (messages.single() as ChatMessage.Assistant).parts.single() as Part.Reasoning
+        assertEquals("thinking", part.text)
+    }
+
+    @Test
+    fun `a delta for an unknown message is ignored rather than inventing one`() {
         val messages = ChatReducer.reduceMessages(
-            listOf(user("m1")),
-            ServerEvent.MessageRemoved(session, "m1"),
+            emptyList(),
+            ServerEvent.PartDelta(session, "nope", "p1", "text", "x"),
         )
         assertTrue(messages.isEmpty())
+    }
+
+    @Test
+    fun `a non-text delta field is ignored`() {
+        var messages = ChatReducer.reduceMessages(
+            emptyList(),
+            ServerEvent.MessageUpserted(session, assistant("m1")),
+        )
+        messages = ChatReducer.reduceMessages(
+            messages,
+            ServerEvent.PartUpserted(session, "m1", Part.Tool("t1", "grep", "Grep", ToolState())),
+        )
+        messages = ChatReducer.reduceMessages(
+            messages,
+            ServerEvent.PartDelta(session, "m1", "t1", "input", "{\"x\":1}"),
+        )
+
+        val part = (messages.single() as ChatMessage.Assistant).parts.single()
+        assertTrue(part is Part.Tool)
     }
 }

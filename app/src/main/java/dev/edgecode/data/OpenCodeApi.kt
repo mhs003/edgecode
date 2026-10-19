@@ -98,6 +98,7 @@ object ChatReducer {
         when (event) {
             is ServerEvent.MessageUpserted -> upsertMessage(current, event.message)
             is ServerEvent.PartUpserted -> upsertPart(current, event.sessionId, event.messageId, event.part)
+            is ServerEvent.PartDelta -> appendDelta(current, event)
             is ServerEvent.MessageRemoved -> current.filterNot { it.id == event.messageId }
             is ServerEvent.SessionFailed -> current.map { message ->
                 if (message is ChatMessage.Assistant && message.streaming) {
@@ -188,6 +189,43 @@ object ChatReducer {
             }
 
             else -> current
+        }
+    }
+
+    /**
+     * Appends a slice of text to the part being written.
+     *
+     * The part may not have arrived yet — a delta can precede the frame that
+     * creates it — in which case the part is started from the delta alone. A
+     * later whole-part frame replaces the part outright, so any drift between
+     * the deltas and the server's own accumulation corrects itself.
+     */
+    private fun appendDelta(
+        current: List<ChatMessage>,
+        event: ServerEvent.PartDelta,
+    ): List<ChatMessage> {
+        if (event.field != "text") return current
+
+        val index = current.indexOfFirst { it.id == event.messageId }
+        if (index < 0) return current
+        val message = current[index]
+        if (message !is ChatMessage.Assistant) return current
+
+        val parts = message.parts.toMutableList()
+        val partIndex = parts.indexOfFirst { it.id == event.partId }
+
+        if (partIndex < 0) {
+            parts.add(Part.Text(id = event.partId, text = event.delta, streaming = true))
+        } else {
+            parts[partIndex] = when (val part = parts[partIndex]) {
+                is Part.Text -> part.copy(text = part.text + event.delta, streaming = true)
+                is Part.Reasoning -> part.copy(text = part.text + event.delta, streaming = true)
+                else -> return current
+            }
+        }
+
+        return current.toMutableList().also {
+            it[index] = message.copy(parts = parts, streaming = true)
         }
     }
 

@@ -487,6 +487,24 @@ object OpenCodeWire {
                 }
             }
 
+            // The growth of a reply. `part.updated` brackets it — the part is
+            // sent once empty and once complete — so appending these and letting
+            // the final whole part overwrite the result is self-correcting.
+            "message.part.delta" -> {
+                val delta = properties.stringOr("delta", "")
+                if (delta.isEmpty()) {
+                    null
+                } else {
+                    ServerEvent.PartDelta(
+                        sessionId = properties.stringOr("sessionID", ""),
+                        messageId = properties.stringOr("messageID", ""),
+                        partId = properties.stringOr("partID", ""),
+                        field = properties.stringOr("field", ""),
+                        delta = delta,
+                    )
+                }
+            }
+
             "message.removed" -> {
                 val sessionId = properties.stringOr("sessionID", "")
                 properties.string("messageID")?.let {

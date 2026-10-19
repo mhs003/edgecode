@@ -295,6 +295,23 @@ sealed interface ServerEvent {
     data class SessionRemoved(val sessionId: String) : ServerEvent
     data class MessageUpserted(val sessionId: String, val message: ChatMessage) : ServerEvent
     data class PartUpserted(val sessionId: String, val messageId: String, val part: Part) : ServerEvent
+
+    /**
+     * A slice of a part that is still being written.
+     *
+     * Replies do not arrive as a series of whole parts: the server sends the
+     * part once, empty, and then every subsequent character as a delta. Without
+     * this the transcript only updates when the part is finally sent whole,
+     * which reads as no streaming at all.
+     */
+    data class PartDelta(
+        val sessionId: String,
+        val messageId: String,
+        val partId: String,
+        val field: String,
+        val delta: String,
+    ) : ServerEvent
+
     data class MessageRemoved(val sessionId: String, val messageId: String) : ServerEvent
     data class PermissionRequested(val request: PermissionRequest) : ServerEvent
     data class PermissionResolved(val requestId: String) : ServerEvent

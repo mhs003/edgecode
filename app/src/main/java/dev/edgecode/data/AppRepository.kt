@@ -332,6 +332,7 @@ class AppRepository(
 private fun ServerEvent.sessionIdOrNull(): String? = when (this) {
     is ServerEvent.MessageUpserted -> sessionId
     is ServerEvent.PartUpserted -> sessionId
+    is ServerEvent.PartDelta -> sessionId
     is ServerEvent.MessageRemoved -> sessionId
     is ServerEvent.SessionIdle -> sessionId
     is ServerEvent.SessionFailed -> sessionId
