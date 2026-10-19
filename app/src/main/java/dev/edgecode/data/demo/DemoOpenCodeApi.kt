@@ -172,10 +172,11 @@ class DemoOpenCodeApi(
         attachments: List<Attachment>,
         agent: String?,
         model: ModelRef?,
+        messageId: String?,
     ): String {
         val now = System.currentTimeMillis()
         val userMessage = ChatMessage.User(
-            id = nextId("msg"),
+            id = messageId ?: nextId("msg"),
             createdAt = now,
             text = text,
             attachments = attachments,

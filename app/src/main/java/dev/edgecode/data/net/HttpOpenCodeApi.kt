@@ -105,11 +105,12 @@ class HttpOpenCodeApi(
         attachments: List<Attachment>,
         agent: String?,
         model: ModelRef?,
+        messageId: String?,
     ): String {
-        val messageId = "msg_" + java.util.UUID.randomUUID().toString().replace("-", "").take(20)
-        val body = OpenCodeWire.promptBody(text, messageId, model, agent, attachments)
+        val id = messageId ?: OpenCodeWire.newMessageId()
+        val body = OpenCodeWire.promptBody(text, id, model, agent, attachments)
         transport.request("POST", "/session/$sessionId/prompt_async", body = body)
-        return messageId
+        return id
     }
 
     override suspend fun runCommand(sessionId: String, command: String, arguments: String) {

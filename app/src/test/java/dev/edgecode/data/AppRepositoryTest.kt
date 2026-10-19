@@ -86,7 +86,8 @@ class AppRepositoryTest {
             attachments: List<Attachment>,
             agent: String?,
             model: ModelRef?,
-        ): String = call("m")
+            messageId: String?,
+        ): String = call(messageId ?: "m")
 
         override suspend fun runCommand(sessionId: String, command: String, arguments: String) =
             call(Unit)

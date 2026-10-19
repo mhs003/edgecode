@@ -6,6 +6,7 @@ import dev.edgecode.core.model.Attachment
 import dev.edgecode.core.model.ChatMessage
 import dev.edgecode.core.model.ModelInfo
 import dev.edgecode.core.model.ModelRef
+import dev.edgecode.core.model.Part
 import dev.edgecode.core.model.PermissionDecision
 import dev.edgecode.core.model.PermissionRequest
 import dev.edgecode.core.model.ProjectRef
@@ -50,6 +51,7 @@ interface OpenCodeApi {
         attachments: List<Attachment> = emptyList(),
         agent: String? = null,
         model: ModelRef? = null,
+        messageId: String? = null,
     ): String
 
     suspend fun runCommand(sessionId: String, command: String, arguments: String)
@@ -125,6 +127,15 @@ object ChatReducer {
                         parts = if (message.parts.isEmpty()) existing.parts else message.parts,
                         streaming = existing.streaming || message.streaming,
                     )
+                // A `message.updated` frame for a user message carries no parts
+                // at all — the body arrives separately over
+                // `message.part.updated` — so the server sends several frames
+                // for one message and each one would otherwise blank the text.
+                existing is ChatMessage.User && message is ChatMessage.User ->
+                    message.copy(
+                        text = message.text.ifBlank { existing.text },
+                        attachments = message.attachments.ifEmpty { existing.attachments },
+                    )
                 else -> message
             }
             current.toMutableList().also { it[index] = merged }
@@ -151,13 +162,45 @@ object ChatReducer {
             return current + shell
         }
         val message = current[index]
-        if (message !is ChatMessage.Assistant) return current
+        return when (message) {
+            is ChatMessage.Assistant -> {
+                val parts = message.parts.toMutableList()
+                val partIndex = parts.indexOfFirst { it.id == part.id }
+                if (partIndex >= 0) parts[partIndex] = part else parts.add(part)
+                current.toMutableList().also { it[index] = message.copy(parts = parts) }
+            }
 
-        val parts = message.parts.toMutableList()
-        val partIndex = parts.indexOfFirst { it.id == part.id }
-        if (partIndex >= 0) parts[partIndex] = part else parts.add(part)
+            // A user message has no part list in the model, so its body is
+            // folded into `text` and `attachments` as the parts arrive.
+            is ChatMessage.User -> {
+                val updated = when (part) {
+                    is Part.Text -> message.copy(text = mergeUserText(message.text, part.text))
+                    is Part.Attachment -> message.copy(
+                        attachments = if (message.attachments.any { it.id == part.attachment.id }) {
+                            message.attachments
+                        } else {
+                            message.attachments + part.attachment
+                        },
+                    )
+                    else -> message
+                }
+                current.toMutableList().also { it[index] = updated }
+            }
 
-        return current.toMutableList().also { it[index] = message.copy(parts = parts) }
+            else -> current
+        }
+    }
+
+    /**
+     * The server sends a user message's body as its own part, and re-sends the
+     * frame on every update. Identical text is a re-emit and must not double up.
+     */
+    private fun mergeUserText(existing: String, incoming: String): String = when {
+        incoming.isBlank() -> existing
+        existing.isBlank() -> incoming
+        existing == incoming -> existing
+        existing.contains(incoming) -> existing
+        else -> "$existing\n$incoming"
     }
 
     fun reduceSessions(

@@ -520,8 +520,12 @@ object OpenCodeWire {
 
     /**
      * A client-supplied message id lets the optimistic local bubble be
-     * reconciled with the server's copy instead of duplicating it.
+     * reconciled with the server's copy instead of duplicating it. The server
+     * keeps an id we supply, provided it carries the `msg_` prefix.
      */
+    fun newMessageId(): String =
+        "msg_" + java.util.UUID.randomUUID().toString().replace("-", "").take(20)
+
     fun promptBody(
         text: String,
         messageId: String?,

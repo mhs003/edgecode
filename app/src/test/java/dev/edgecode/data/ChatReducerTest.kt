@@ -163,4 +163,133 @@ class ChatReducerTest {
         assertEquals(ToolStatus.Completed, tool.state.status)
         assertEquals("3 matches", tool.state.output)
     }
+
+    // A user message behaves nothing like an assistant one on the wire. Its
+    // `message.updated` frame carries no parts at all — the body arrives later
+    // over `message.part.updated` — and the frame is re-sent on every update.
+    // Treating it like an assistant message dropped the text entirely, which is
+    // what a transcript of only the agent's replies looked like.
+
+    @Test
+    fun `a user message body arrives as a part and is folded into the message`() {
+        var messages = ChatReducer.reduceMessages(
+            emptyList(),
+            ServerEvent.MessageUpserted(session, ChatMessage.User("m1", 1L, text = "")),
+        )
+        messages = ChatReducer.reduceMessages(
+            messages,
+            ServerEvent.PartUpserted(session, "m1", Part.Text("p1", "what changed?")),
+        )
+
+        assertEquals(1, messages.size)
+        assertEquals("what changed?", (messages.single() as ChatMessage.User).text)
+    }
+
+    @Test
+    fun `a repeated message frame does not blank the user body`() {
+        var messages = ChatReducer.reduceMessages(
+            emptyList(),
+            ServerEvent.MessageUpserted(session, ChatMessage.User("m1", 1L, text = "keep me")),
+        )
+        // The server re-sends the frame with no body after each part update.
+        messages = ChatReducer.reduceMessages(
+            messages,
+            ServerEvent.MessageUpserted(session, ChatMessage.User("m1", 1L, text = "")),
+        )
+
+        assertEquals("keep me", (messages.single() as ChatMessage.User).text)
+    }
+
+    @Test
+    fun `an echo of an optimistic message merges instead of duplicating`() {
+        // This is the whole send path: the repository inserts the bubble under
+        // an id it chose, the server keeps that id, and the echo must land on
+        // the same row.
+        var messages: List<ChatMessage> = listOf(ChatMessage.User("m1", 1L, text = "sent from the app"))
+        messages = ChatReducer.reduceMessages(
+            messages,
+            ServerEvent.MessageUpserted(session, ChatMessage.User("m1", 1L, text = "")),
+        )
+        messages = ChatReducer.reduceMessages(
+            messages,
+            ServerEvent.PartUpserted(session, "m1", Part.Text("p1", "sent from the app")),
+        )
+
+        assertEquals(1, messages.size)
+        assertEquals("sent from the app", (messages.single() as ChatMessage.User).text)
+    }
+
+    @Test
+    fun `a re-emitted identical part does not double the user body`() {
+        var messages = ChatReducer.reduceMessages(
+            emptyList(),
+            ServerEvent.MessageUpserted(session, ChatMessage.User("m1", 1L, text = "")),
+        )
+        repeat(3) {
+            messages = ChatReducer.reduceMessages(
+                messages,
+                ServerEvent.PartUpserted(session, "m1", Part.Text("p1", "hi")),
+            )
+        }
+        assertEquals("hi", (messages.single() as ChatMessage.User).text)
+    }
+
+    @Test
+    fun `a user message attachment is kept`() {
+        var messages = ChatReducer.reduceMessages(
+            emptyList(),
+            ServerEvent.MessageUpserted(session, ChatMessage.User("m1", 1L, text = "")),
+        )
+        messages = ChatReducer.reduceMessages(
+            messages,
+            ServerEvent.PartUpserted(
+                session, "m1",
+                Part.Attachment(
+                    "p2",
+                    dev.edgecode.core.model.Attachment(
+                        id = "a1",
+                        name = "shot.png",
+                        mime = "image/png",
+                        sizeBytes = 10,
+                        kind = dev.edgecode.core.model.AttachmentKind.Image,
+                    ),
+                ),
+            ),
+        )
+
+        val user = messages.single() as ChatMessage.User
+        assertEquals(1, user.attachments.size)
+        assertEquals("shot.png", user.attachments.single().name)
+    }
+
+    @Test
+    fun `an attachment part arriving twice is not duplicated`() {
+        val attachment = dev.edgecode.core.model.Attachment(
+            id = "a1",
+            name = "shot.png",
+            mime = "image/png",
+            sizeBytes = 10,
+            kind = dev.edgecode.core.model.AttachmentKind.Image,
+        )
+        var messages = ChatReducer.reduceMessages(
+            emptyList(),
+            ServerEvent.MessageUpserted(session, ChatMessage.User("m1", 1L, text = "")),
+        )
+        repeat(2) {
+            messages = ChatReducer.reduceMessages(
+                messages,
+                ServerEvent.PartUpserted(session, "m1", Part.Attachment("p2", attachment)),
+            )
+        }
+        assertEquals(1, (messages.single() as ChatMessage.User).attachments.size)
+    }
+
+    @Test
+    fun `a removal takes the user message with it`() {
+        val messages = ChatReducer.reduceMessages(
+            listOf(user("m1")),
+            ServerEvent.MessageRemoved(session, "m1"),
+        )
+        assertTrue(messages.isEmpty())
+    }
 }

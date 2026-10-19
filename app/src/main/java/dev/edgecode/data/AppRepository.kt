@@ -17,6 +17,7 @@ import dev.edgecode.core.model.SlashCommand
 import dev.edgecode.data.demo.DemoOpenCodeApi
 import dev.edgecode.data.net.HttpOpenCodeApi
 import dev.edgecode.data.net.HttpTransport
+import dev.edgecode.data.net.OpenCodeWire
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -276,12 +277,34 @@ class AppRepository(
         model: ModelRef?,
     ) {
         val client = api ?: return
+        val body = text.trim()
+        if (body.isEmpty() && attachments.isEmpty()) return
+
+        val messageId = OpenCodeWire.newMessageId()
+
+        // The turn appears immediately rather than waiting on a round trip. The
+        // id is ours, and the server keeps it, so the echo over the event stream
+        // merges into this bubble instead of duplicating it.
+        val optimistic = ChatMessage.User(
+            id = messageId,
+            createdAt = System.currentTimeMillis(),
+            text = body,
+            attachments = attachments,
+        )
+        chats[sessionId]?.update { current ->
+            current.copy(messages = current.messages + optimistic, error = null)
+        }
+
         scope.launch {
             runCatching {
-                client.sendPrompt(sessionId, text.trim(), attachments, agent, model)
+                client.sendPrompt(sessionId, body, attachments, agent, model, messageId)
             }.onFailure { error ->
-                chats[sessionId]?.update {
-                    it.copy(error = error.message ?: "Message failed to send")
+                // It never reached the server, so the bubble is a lie.
+                chats[sessionId]?.update { current ->
+                    current.copy(
+                        messages = current.messages.filterNot { it.id == messageId },
+                        error = error.message ?: "Message failed to send",
+                    )
                 }
             }
         }
