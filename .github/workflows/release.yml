@@ -30,7 +30,14 @@ jobs:
           java-version: "17"
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        # v3 ran `sdkmanager tools`, a package that was removed from the SDK
+        # repository; the job died there before Gradle started. v4 knows the
+        # package is gone and skips it.
+        uses: android-actions/setup-android@v4
+        with:
+          # The project compiles against API 37 minor level 2. Installing it
+          # here keeps the build from depending on AGP's auto-download.
+          packages: "platform-tools platforms;android-37.2"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -55,7 +62,14 @@ jobs:
           java-version: "17"
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        # v3 ran `sdkmanager tools`, a package that was removed from the SDK
+        # repository; the job died there before Gradle started. v4 knows the
+        # package is gone and skips it.
+        uses: android-actions/setup-android@v4
+        with:
+          # The project compiles against API 37 minor level 2. Installing it
+          # here keeps the build from depending on AGP's auto-download.
+          packages: "platform-tools platforms;android-37.2"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
