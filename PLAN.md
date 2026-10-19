@@ -342,6 +342,27 @@ Sources: [OpenCode server docs](https://opencode.ai/docs/server/) ·
 [ChatGPT Android UI reference](https://gummble.com/apps/chatgpt-android) ·
 [opencode-ui desktop client](https://github.com/marmotz-dev/opencode-ui)
 
+### v2 is a different API, not a newer v1
+
+Measured against a live `opencode v2.0.22` server, because one was available and
+the difference is not obvious from the version number alone:
+
+| | v1.19.3 — this client's target | v2.0.22 |
+|---|---|---|
+| paths | `/session`, `/provider`, `/event`, `/global/health` | same names under `/api` |
+| unknown path | JSON error | the web UI's HTML with status 200 |
+| auth | none | Basic on every `/api` path; `401 {"_tag":"UnauthorizedError"}` |
+| errors | `{data: {message}}` | tagged union `{_tag, message}` |
+
+The consequence is worth stating plainly: a v2 server answers every v1 path with
+**200 and an HTML document**, so a v1 client fails while parsing JSON
+(`unexpected character '<' at offset 0`) rather than reporting a version
+mismatch. None of the v1 mapping transfers unchanged.
+
+Supporting v2 therefore means a second wire layer behind `OpenCodeApi`, chosen
+at connect time — not a patch to the existing one. **Not implemented.** The
+target stays v1, which is what the Termux server runs.
+
 ---
 
 ## 12. Network implementation plan
