@@ -165,12 +165,15 @@ class HttpTransport(
             java.net.URLEncoder.encode(this, "UTF-8").replace("+", "%20")
 
         fun describe(code: Int, body: String): String {
+            // The server reports its own errors as
+            // `{name, data:{message}, kind}` — for example
+            //   Expected a string starting with "prt", got "msg_abc"
+            // which is far more useful than anything we could invent.
             val detail = runCatching {
-                dev.edgecode.core.util.parseJson(body).let { json ->
-                    json.string("message")
-                        ?: json.obj("error")?.string("message")
-                        ?: json.string("data")
-                }
+                val json = dev.edgecode.core.util.parseJson(body)
+                json.string("message")
+                    ?: json.obj("data")?.string("message")
+                    ?: json.obj("error")?.string("message")
             }.getOrNull()
 
             return when {

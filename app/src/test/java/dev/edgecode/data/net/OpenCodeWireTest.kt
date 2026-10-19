@@ -137,16 +137,20 @@ class OpenCodeWireTest {
     }
 
     @Test
-    fun aSingleStepTurnDropsItsStepBoundaries() {
-        // The real fixture has exactly one step. Rendering its boundaries put a
-        // rule above and below an ordinary reply.
+    fun aOneStepTurnDropsItsStepBoundaries() {
+        // The real fixture is a step-start, text and step-finish. The boundaries
+        // are structure, and rendering them put a rule above and below every
+        // ordinary reply.
         val assistant = OpenCodeWire.message(fixture("messages.json")[1]!!)
             as ChatMessage.Assistant
-        assertEquals(0, assistant.parts.count { it is Part.Step })
+        assertEquals(1, assistant.parts.size)
+        assertEquals(1, assistant.parts.filterIsInstance<Part.Text>().size)
     }
 
     @Test
-    fun aMultiStepTurnKeepsItsStepBoundaries() {
+    fun aMultiStepTurnAlsoDropsThem() {
+        // A turn that iterated more than once is no different: the reasoning
+        // pass adds a second step, so almost every reply has two.
         val parts = (1..2).joinToString(",") { index ->
             """{"id":"p$index","type":"step-start","snapshot":"s"}"""
         }
@@ -160,9 +164,8 @@ class OpenCodeWireTest {
             ),
         ) as ChatMessage.Assistant
 
-        assertEquals(2, message.parts.count { it is Part.Step })
-        assertEquals(0, message.parts.filterIsInstance<Part.Step>()[0].index)
-        assertEquals(1, message.parts.filterIsInstance<Part.Step>()[1].index)
+        assertEquals(1, message.parts.size)
+        assertEquals(1, message.parts.filterIsInstance<Part.Text>().size)
     }
 
     @Test
@@ -475,6 +478,9 @@ class OpenCodeWireTest {
         val part = body.arr("parts").single()
         assertEquals("text", part.string("type"))
         assertEquals("hello", part.string("text"))
+        // A part id is a server-side `prt_…` identity. Echoing the message id
+        // here is rejected outright with a 400, so the part must not carry one.
+        assertNull(part.string("id"))
     }
 
     @Test

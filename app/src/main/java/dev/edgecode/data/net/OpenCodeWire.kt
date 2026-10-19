@@ -127,34 +127,13 @@ object OpenCodeWire {
             )
 
             "assistant" -> {
-                // Steps are numbered by their position in the turn: the server's
-                // step parts carry no index of their own, and the UI groups by it.
-                //
-                // A one-step turn is the common case and its boundaries are pure
-                // structure — rendering them put a rule above and below every
-                // ordinary reply, which reads as a divider around bare text. They
-                // are kept only when the turn really iterated more than once.
-                val stepModel = modelRef(info)?.let { "${it.providerId}/${it.modelId}" }
-                var step = -1
-                val mapped = parts.mapNotNull { part(it) }.mapNotNull { mapped ->
-                    if (mapped is Part.Step) {
-                        step += 1
-                        mapped.copy(index = step, model = stepModel)
-                    } else {
-                        mapped
-                    }
-                }
-                // A single logical step emits *two* parts — a `step-start` and a
-                // matching `step-finish` — so the count that matters is of the
-                // starts, not of the boundaries.
-                val stepStarts = mapped.count { it is Part.Step && !it.finished }
-                val visible = if (stepStarts <= 1) mapped.filterNot { it is Part.Step } else mapped
+                val rendered = parts.mapNotNull { part(it) }
                 val created = info.obj("time")?.longOr("created", 0L) ?: 0L
                 val completed = info.obj("time")?.long("completed")
                 ChatMessage.Assistant(
                     id = id,
                     createdAt = created,
-                    parts = visible,
+                    parts = rendered,
                     agent = info.string("agent") ?: info.string("mode"),
                     model = modelRef(info),
                     // A turn is live if the server has not stamped `completed`.
@@ -256,19 +235,11 @@ object OpenCodeWire {
 
             "file" -> Part.Attachment(id = id, attachment = attachment(json))
 
-            "step-start" -> Part.Step(
-                id = id,
-                index = 0,
-                model = null,
-                finished = false,
-            )
-
-            "step-finish" -> Part.Step(
-                id = id,
-                index = 0,
-                model = null,
-                finished = true,
-            )
+            // Step boundaries are structure, not content. The server emits a
+            // `step-start`/`step-finish` pair around every model iteration —
+            // including the reasoning pass — so rendering them put a hairline
+            // rule above and below every ordinary reply.
+            "step-start", "step-finish" -> null
 
             "patch", "snapshot" -> Part.Diff(id = id, files = emptyList())
 
@@ -561,12 +532,14 @@ object OpenCodeWire {
         val parts = mutableListOf<JsonValue>()
 
         if (text.isNotBlank()) {
+            // The part deliberately carries no id. A part id is a `prt_…`
+            // server-side identity, not the message id, and echoing the message
+            // id here is rejected with a 400.
             parts += JsonValue.Obj(
-                buildMap {
-                    messageId?.let { put("id", JsonValue.Str(it)) }
-                    put("type", JsonValue.Str("text"))
-                    put("text", JsonValue.Str(text))
-                },
+                mapOf(
+                    "type" to JsonValue.Str("text"),
+                    "text" to JsonValue.Str(text),
+                ),
             )
         }
 

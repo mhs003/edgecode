@@ -173,14 +173,6 @@ sealed interface Part {
         val attachment: dev.edgecode.core.model.Attachment,
     ) : Part
 
-    /** Boundary between assistant turns; carries the model that produced the turn. */
-    data class Step(
-        override val id: String,
-        val index: Int,
-        val model: String? = null,
-        val finished: Boolean = false,
-    ) : Part
-
     data class Diff(
         override val id: String,
         val files: List<DiffFile>,

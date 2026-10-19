@@ -105,12 +105,18 @@ position. It was correct but read wrong — a two-turn session rendered as a lar
 void above the messages, which is the opposite of how the reference clients look.
 The replacement keeps the useful half of that property explicitly:
 
-- `atBottom` is `!listState.canScrollForward`, so following is conditional on the
-  reader already being at the end.
+- Following is a remembered intent, not a measured position. An append makes the
+  list scrollable before layout runs, so an `atBottom` test can fail exactly when
+  the view most needs to follow. The intent is updated when a scroll settles:
+  leaving the end disarms it, returning to the end re-arms it. `atBottom`
+  (`!canScrollForward`) is still what decides whether the jump-to-latest control
+  is shown.
 - A `LaunchedEffect` keyed on the message count *and* the newest reply's text
   length re-pins the view as the reply streams. Keying on the count alone would
   leave the newest text below the fold, which is the failure mode `reverseLayout`
   was avoiding.
+- The follow effect is skipped while a gesture or fling is in progress, so a
+  reader who scrolls away mid-stream is never dragged back by the next token.
 - `scrollToEnd` scrolls past the final item rather than to it. `scrollToItem`
   alone lands on the *top* of that item, which is wrong whenever the last turn is
   taller than the viewport.

@@ -98,8 +98,6 @@ fun PartView(
 
         is Part.Attachment -> AttachmentInline(part.attachment, modifier)
 
-        is Part.Step -> StepRow(part, modifier)
-
         is Part.Diff -> DiffBlock(part.files, modifier)
 
         is Part.Note -> NoteRow(part.text, modifier)
@@ -343,38 +341,6 @@ private fun ToolStatusGlyph(status: ToolStatus) {
                 modifier = Modifier.size(14.dp),
             )
         }
-    }
-}
-
-@Composable
-private fun StepRow(part: Part.Step, modifier: Modifier = Modifier) {
-    val edge = LocalEdgeColors.current
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = Space.xs),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Space.sm),
-    ) {
-        Box(
-            modifier = Modifier
-                .height(Stroke.hairline)
-                .weight(1f)
-                .background(MaterialTheme.colorScheme.outlineVariant),
-        )
-        if (part.model != null) {
-            Text(
-                text = part.model,
-                style = MaterialTheme.typography.labelSmall,
-                color = edge.faint,
-            )
-        }
-        Box(
-            modifier = Modifier
-                .height(Stroke.hairline)
-                .weight(1f)
-                .background(MaterialTheme.colorScheme.outlineVariant),
-        )
     }
 }
 

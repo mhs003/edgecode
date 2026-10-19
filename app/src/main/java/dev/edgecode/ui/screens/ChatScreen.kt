@@ -43,6 +43,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -109,8 +110,9 @@ private suspend fun LazyListState.scrollToEnd(index: Int) {
  * edge to edge between them and the window reads as one surface rather than a
  * stack of framed bands.
  *
- * Laid out with `reverseLayout` so the newest message is anchored to the bottom:
- * that keeps streaming content pinned without fighting the scroll position.
+ * Top-anchored, like the reference clients: the first turn sits under the
+ * header and the conversation grows downward. The view follows the newest
+ * content only while the reader is at (or returning to) the end.
  */
 @Composable
 fun ChatScreen(
@@ -182,6 +184,22 @@ fun ChatScreen(
 
     val atBottom by remember { derivedStateOf { !listState.canScrollForward } }
 
+    // Whether the view should follow the newest content.
+    //
+    // This cannot be read from `atBottom`: appending a turn makes the list
+    // scrollable, so `canScrollForward` turns true before this effect observes
+    // it and an at-bottom test never passes after sending. What matters is the
+    // reader's intent, which only a scroll gesture changes — and a programmatic
+    // scroll to the end always lands at the end, so re-arming from it is a
+    // no-op rather than a feedback loop.
+    val followEnd = remember { mutableStateOf(true) }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }
+            .collect { scrolling ->
+                if (!scrolling) followEnd.value = !listState.canScrollForward
+            }
+    }
+
     // How much text the newest reply currently holds. Used as a scroll trigger
     // so the view follows the reply as it streams, not only when a turn lands.
     val streamingGrowth = messages.lastOrNull()
@@ -189,10 +207,13 @@ fun ChatScreen(
         ?.sumOf { (it as? Part.Text)?.text?.length ?: 0 }
         ?: 0
 
-    // Top-anchored, so the transcript only needs steering while the reader is
-    // already at the end. Scrolling away is respected.
     LaunchedEffect(messages.size, streamingGrowth) {
-        if (messages.isNotEmpty() && atBottom) listState.scrollToEnd(messages.lastIndex)
+        // Do not yank the list while a gesture or fling is in flight: a reader
+        // scrolling away mid-stream must win over the next token. Following is
+        // re-armed when that scroll settles at the end.
+        if (messages.isNotEmpty() && followEnd.value && !listState.isScrollInProgress) {
+            listState.scrollToEnd(messages.lastIndex)
+        }
     }
 
     // Opening a session should land on the newest turn, not the first.
