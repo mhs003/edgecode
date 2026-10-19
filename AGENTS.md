@@ -13,10 +13,9 @@ selection, attachments.
 code is shaped the way it is. `PLAN.md` is the delivery plan and the API notes.
 Read all three before non-trivial changes.
 
-**Current state:** the UI is complete and runs against an in-process demo dataset
-(`DemoOpenCodeApi`). The chat surface and the shared scaffolding have been
-redesigned around a single-canvas design language (see *Design language* below).
-The real network client is not written yet; it replaces that one class.
+**Current state:** the UI is complete and the app talks to a real OpenCode v1
+server. `data/net/HttpOpenCodeApi` is the live client; `DemoOpenCodeApi` remains
+behind a `demo://` URL so the interface can still be driven without a server.
 
 ## Build and run
 
@@ -48,6 +47,9 @@ app/src/main/java/dev/edgecode/
 │   ├── OpenCodeApi.kt       the API seam + ChatReducer (pure)
 │   ├── AppRepository.kt     state, event reduction, actions
 │   ├── SettingsStore.kt     preferences
+│   ├── ConnectionsStore.kt  saved servers
+│   ├── net/                 the real client: HttpOpenCodeApi, Transport,
+│   │                        OpenCodeWire, Sse — all protocol logic
 │   └── demo/                fixture content + demo API implementation
 └── ui/
     ├── AppViewModel.kt      navigation stack, wiring
@@ -64,6 +66,16 @@ app/src/main/java/dev/edgecode/
 - **Keep pure logic pure.** `ChatReducer`, `Markdown`, `SyntaxHighlighter`,
   `Diff` and `core/util/Format` must stay free of Android and coroutine types so
   they are unit-testable on the JVM. That is where the real complexity lives.
+- **Protocol logic belongs in a pure function.** `Json`, `Sse` and
+  `OpenCodeWire` hold every decision about the wire format and are tested on the
+  JVM against captured server responses. `Transport` and `HttpOpenCodeApi` are
+  thin by design: they route, they do not decide.
+- **No JSON or HTTP dependency.** `org.json` is Android-only and stubbed to
+  throw under JVM unit tests, which would put the mappers out of test reach.
+  OkHttp and kotlinx.serialization are artifacts to fetch and dex on a phone.
+- **Unknown wire values degrade, they do not throw.** An unrecognised part type
+  becomes a note naming it; an unmapped event type is dropped. The server adds
+  union variants between minor versions and documents its event stream as lossy.
 - **Streaming is a delta channel, never the truth.** The v1 server documents its
   event stream as lossy. Any new state that arrives by event must also be
   derivable from a REST fetch.

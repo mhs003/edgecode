@@ -26,11 +26,12 @@ explains most of the decisions below.
 graph TD
     UI["ui/ — screens, chat, AppViewModel"]
     MODEL["core/model — domain types"]
-    DATA["data/ — OpenCodeApi, AppRepository, SettingsStore"]
+    DATA["data/ — OpenCodeApi, AppRepository, stores"]
+    NET["data/net — Transport, HttpOpenCodeApi, wire"]
     DEMO["data/demo — DemoOpenCodeApi + fixtures"]
     DESIGN["core/design — tokens, theme, icons, components"]
     MD["core/markdown — parser, inline, highlighter"]
-    UTIL["core/util — format, diff, clipboard, images"]
+    UTIL["core/util — format, diff, clipboard, images, Json"]
 
     UI --> MODEL
     UI --> DESIGN
@@ -38,22 +39,27 @@ graph TD
     UI --> UTIL
     UI --> DATA
     DATA --> MODEL
+    NET --> DATA
+    NET --> MODEL
+    NET --> UTIL
     DEMO --> DATA
     DEMO --> MODEL
 ```
 
 The load-bearing rule: **the UI only knows `core/model`.** Nothing above `data/`
-may reference a wire format. That is what lets the demo be replaced by a real
-client without touching a single screen.
+may reference a wire format. That is what lets the demo and the real client be
+swapped without touching a single screen.
 
 | Component | Responsibility |
 |---|---|
 | `core/model` | `SessionSummary`, `ChatMessage`, `Part`, `ToolState`, `PermissionRequest`, `ServerEvent`, … |
 | `core/design` | Colour, typography, spacing, radius and motion tokens; `EdgeTheme`; `EdgeIcons`; shared components |
 | `core/markdown` | `Markdown.parse` → blocks, `renderInline` → `AnnotatedString`, `SyntaxHighlighter` |
-| `core/util` | Number/date formatting, unified-diff parsing, clipboard, bitmap decoding |
+| `core/util` | Formatting, unified-diff parsing, clipboard, bitmap decoding, and `Json` |
 | `data/OpenCodeApi` | The API seam and `ChatReducer` (pure event reduction) |
 | `data/AppRepository` | Owns the API, subscribes to events, exposes `StateFlow`s, performs actions |
+| `data/ConnectionsStore` | Saved servers, with the list rules as a pure `Connections` object |
+| `data/net` | The real client: `Transport`, `HttpOpenCodeApi`, `OpenCodeWire`, `Sse` |
 | `data/demo` | `DemoOpenCodeApi` and fixture content |
 | `ui/AppViewModel` | Navigation stack, selection state, settings writes |
 | `ui/screens`, `ui/chat` | The four destinations and the transcript components |
@@ -160,11 +166,53 @@ The replacement keeps the useful half of that property explicitly:
    measured first and the last one absorbs the overflow, which is how a status
    label once rendered one character per line down the screen edge.
 
+## Network layer
+
+`data/net` holds everything that knows about the wire, so that no other package
+has to.
+
+| File | Knows about | Tested by |
+|---|---|---|
+| `core/util/Json.kt` | JSON syntax only | `JsonTest` |
+| `data/net/Sse.kt` | the SSE frame syntax only | `SseTest` |
+| `data/net/OpenCodeWire.kt` | OpenCode's shapes | `OpenCodeWireTest` |
+| `data/net/Transport.kt` | HTTP, auth and the SSE transport | device only |
+| `data/net/HttpOpenCodeApi.kt` | routing only | device only |
+
+The split matters because the two files that cannot be unit-tested are the two
+that hold no decisions. Everything that could be wrong about the protocol lives
+in a pure function with a test.
+
+**No JSON dependency.** `org.json` ships with Android but is stubbed to throw in
+JVM unit tests, so using it would push every mapper out of test reach; a
+serialization library is an artifact to fetch and dex on a phone. The parser is
+a few hundred lines and is the reason the mappers are testable at all.
+
+**Fixtures are captured, not written.** `app/src/test/resources/fixtures/` holds
+unmodified responses from a running server, so a mapping cannot be "correct"
+only against a reading of the spec.
+
+**Shapes that bite**, each pinned by a test:
+
+- A message is `{info, parts}` — the two are siblings, and the message is
+  discriminated by `info.role`.
+- A user message carries `model: {providerID, modelID}`; an assistant message
+  carries flat `providerID`/`modelID`. Reading one shape loses the other side.
+- A part is still streaming while `time.end` is absent.
+- The event payload is under `properties`, not `data`.
+- A part id is a server-side `prt_…` identity. Sending the client's message id
+  on a part is rejected with a 400.
+- Step boundaries are structure, not content, and are not mapped at all.
+
+**Failure degrades, never throws.** An unknown part type becomes a `Part.Note`
+naming it and an unmapped event type is dropped. The server adds union variants
+between minor versions and documents its stream as lossy, so a client that
+crashes on the unfamiliar is worse than one that shows a line of text.
+
 ## Extension points
 
 | Goal | How |
 |---|---|
-| Implement the real client | Add `data/opencode/V1Api : OpenCodeApi`; construct it in `AppRepository.connect` instead of `DemoOpenCodeApi` |
 | Support the v2 server | Add `V2Api : OpenCodeApi` and probe at connect (`GET /global/health` vs `GET /api/info`) |
 | Add a screen | Add a `Screen` case, a branch in `EdgeApp`, and a composable under `ui/screens` |
 | Add an icon | Add a vector to `EdgeIcons` on the shared 24dp grid |
