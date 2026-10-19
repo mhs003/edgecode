@@ -20,6 +20,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.edgecode.core.design.EdgeTheme
 import dev.edgecode.core.design.Motion
 import dev.edgecode.core.design.isDark
+import dev.edgecode.data.ConnectionsStore
 import dev.edgecode.data.SettingsStore
 import dev.edgecode.ui.AppViewModel
 import dev.edgecode.ui.AppViewModelFactory
@@ -35,6 +36,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val settingsStore = SettingsStore(applicationContext)
+        val connectionsStore = ConnectionsStore(applicationContext)
 
         // Paint the right background before the first Compose frame. Without
         // this a light-theme start flashes the dark window background and vice
@@ -52,7 +54,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val viewModel: AppViewModel = viewModel(
-                factory = AppViewModelFactory(settingsStore),
+                factory = AppViewModelFactory(settingsStore, connectionsStore),
             )
             val settings by viewModel.settings_.collectAsState()
 

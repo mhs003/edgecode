@@ -1,7 +1,6 @@
 package dev.edgecode.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,13 +10,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -26,37 +29,37 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import dev.edgecode.core.design.EdgeIcons
 import dev.edgecode.core.design.LocalEdgeColors
-import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
-import dev.edgecode.core.design.Stroke
 import dev.edgecode.core.design.components.EdgeButton
 import dev.edgecode.core.design.components.EdgeSecondaryButton
 import dev.edgecode.core.design.components.EdgeTextField
+import dev.edgecode.core.design.components.EdgeTopBar
 import dev.edgecode.core.design.components.ErrorNotice
+import dev.edgecode.core.design.components.IconAction
+import dev.edgecode.core.design.components.Section
 import dev.edgecode.core.design.components.TextAction
 import dev.edgecode.core.design.components.bottomSystemInset
 import dev.edgecode.core.design.components.tappable
 import dev.edgecode.core.design.components.topSystemInset
 import dev.edgecode.core.model.ConnectionState
+import dev.edgecode.core.util.formatRelative
+import dev.edgecode.data.SavedConnection
 import dev.edgecode.ui.AppViewModel
 
 /**
  * First screen: point the app at a server.
  *
- * Validation is real — the screen only advances once the server has answered a
- * health check — but the demo entry beside it is equally prominent, because the
- * app is fully usable without a server.
+ * The servers the user has already reached come first, because on every launch
+ * after the first that is the likely target. The add form is disclosed rather
+ * than always present, so the list — not a blank URL field — is the focus.
  */
 @Composable
 fun ConnectScreen(
@@ -64,16 +67,17 @@ fun ConnectScreen(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val edge = LocalEdgeColors.current
     val connection by viewModel.connection.collectAsState()
-    val saved = viewModel.settings_.collectAsState().value
+    val saved = viewModel.savedConnections.collectAsState().value
 
-    var url by remember { mutableStateOf(saved.serverUrl) }
-    var username by remember { mutableStateOf(saved.serverUsername.orEmpty()) }
+    var formOpen by remember { mutableStateOf(false) }
+    var url by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var showAdvanced by remember { mutableStateOf(false) }
     var showPassword by remember { mutableStateOf(false) }
-    var rememberServer by remember { mutableStateOf(true) }
+    var saveForLater by remember { mutableStateOf(true) }
+    var prompting by remember { mutableStateOf<SavedConnection?>(null) }
+    var removing by remember { mutableStateOf<SavedConnection?>(null) }
 
     val connecting = connection is ConnectionState.Connecting
     val failure = (connection as? ConnectionState.Failed)?.message
@@ -83,229 +87,372 @@ fun ConnectScreen(
             .fillMaxSize()
             .background(scheme.background)
             .topSystemInset()
-            .bottomSystemInset()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = Space.xl),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .bottomSystemInset(),
     ) {
-        Spacer(Modifier.height(Space.xxxl))
-
-        EdgeMark()
-
-        Spacer(Modifier.height(Space.lg))
-
-        Text(
-            text = "EdgeCode",
-            style = MaterialTheme.typography.displaySmall,
-            color = scheme.onSurface,
-        )
-        Spacer(Modifier.height(Space.xs))
-        Text(
-            text = "Connect to an OpenCode server to work with your sessions, " +
-                "tools and models from this device.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = edge.faint,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.widthIn(max = 340.dp),
-        )
-
-        Spacer(Modifier.height(Space.xxl))
+        EdgeTopBar(title = "Connect")
 
         Column(
-            modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(Space.lg),
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
         ) {
-            EdgeTextField(
-                value = url,
-                onValueChange = { url = it },
-                label = "Server address",
-                placeholder = "192.168.1.10:4096",
-                leadingIcon = EdgeIcons.Server,
-                keyboardType = KeyboardType.Uri,
-                imeAction = ImeAction.Next,
-                enabled = !connecting,
-            )
+            if (saved.isNotEmpty()) {
+                Section(title = "Saved") {
+                    saved.forEach { savedConnection ->
+                        SavedRow(
+                            connection = savedConnection,
+                            enabled = !connecting,
+                            onConnect = {
+                                if (savedConnection.needsPassword) {
+                                    viewModel.forgetSaved(savedConnection.id)
+                                    prompting = savedConnection
+                                } else {
+                                    viewModel.connectSaved(savedConnection, null)
+                                }
+                            },
+                            onRemove = { removing = savedConnection },
+                        )
+                    }
+                }
+            }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = if (showAdvanced) "Hide credentials" else "Add credentials",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = scheme.primary,
+            if (!formOpen) {
+                EdgeSecondaryButton(
+                    text = "New connection",
+                    icon = EdgeIcons.Plus,
+                    onClick = { formOpen = true },
+                    enabled = !connecting,
                     modifier = Modifier
-                        .clip(MaterialTheme.shapes.extraSmall)
-                        .tappable { showAdvanced = !showAdvanced }
-                        .padding(vertical = Space.xs, horizontal = Space.xxs),
+                        .fillMaxWidth()
+                        .padding(horizontal = Space.gutter, vertical = Space.lg),
                 )
-                Spacer(Modifier.weight(1f))
+            } else {
+                Section(title = "New connection") {
+                    Column(
+                        modifier = Modifier.padding(horizontal = Space.gutter),
+                        verticalArrangement = Arrangement.spacedBy(Space.lg),
+                    ) {
+                        EdgeTextField(
+                            value = url,
+                            onValueChange = { url = it },
+                            label = "Server address",
+                            placeholder = "192.168.1.10:4096",
+                            leadingIcon = EdgeIcons.Server,
+                            keyboardType = KeyboardType.Uri,
+                            imeAction = ImeAction.Next,
+                            enabled = !connecting,
+                        )
+
+                        EdgeTextField(
+                            value = username,
+                            onValueChange = { username = it },
+                            label = "Username",
+                            placeholder = "opencode",
+                            leadingIcon = EdgeIcons.Person,
+                            enabled = !connecting,
+                        )
+
+                        EdgeTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = "Password",
+                            placeholder = "Server password",
+                            leadingIcon = EdgeIcons.Lock,
+                            singleLine = true,
+                            enabled = !connecting,
+                            imeAction = ImeAction.Done,
+                            visualTransformation = if (showPassword) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
+                            },
+                            trailing = {
+                                TextAction(
+                                    text = if (showPassword) "Hide" else "Show",
+                                    onClick = { showPassword = !showPassword },
+                                )
+                            },
+                        )
+
+                        SaveToggle(
+                            checked = saveForLater,
+                            onToggle = { saveForLater = !saveForLater },
+                        )
+
+                        if (failure != null) {
+                            ErrorNotice(message = failure)
+                        }
+
+                        EdgeButton(
+                            text = if (connecting) "Connecting" else "Connect",
+                            onClick = {
+                                viewModel.connect(url, username, password, saveForLater)
+                            },
+                            enabled = url.isNotBlank(),
+                            loading = connecting,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier.padding(horizontal = Space.gutter, vertical = Space.lg),
+                verticalArrangement = Arrangement.spacedBy(Space.sm),
+            ) {
+                EdgeSecondaryButton(
+                    text = "Explore the demo",
+                    icon = EdgeIcons.Terminal,
+                    onClick = { viewModel.connectDemo() },
+                    enabled = !connecting,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 Text(
-                    text = "Optional",
+                    text = "No server yet? The demo runs the whole interface against " +
+                        "sample data, including streaming replies, tool calls and " +
+                        "permission prompts.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = LocalEdgeColors.current.faint,
+                )
+            }
+
+            Spacer(Modifier.height(Space.xxxl))
+        }
+    }
+
+    prompting?.let { target ->
+        PasswordPrompt(
+            connection = target,
+            onDismiss = { prompting = null },
+            onConfirm = { entered ->
+                prompting = null
+                viewModel.connectSaved(target, entered)
+            },
+        )
+    }
+
+    removing?.let { target ->
+        RemoveDialog(
+            connection = target,
+            onDismiss = { removing = null },
+            onConfirm = {
+                removing = null
+                viewModel.removeSavedConnection(target.id)
+            },
+        )
+    }
+}
+
+/**
+ * A server in the saved list. The last failure, when there is one, takes the
+ * place of the relative time so a dead server reads as dead before it is tapped.
+ */
+@Composable
+private fun SavedRow(
+    connection: SavedConnection,
+    enabled: Boolean,
+    onConnect: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val edge = LocalEdgeColors.current
+    var menu by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .tappable(enabled = enabled, onClick = onConnect)
+            .padding(start = Space.gutter, end = Space.xxs, top = Space.md, bottom = Space.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = connection.name,
+                style = MaterialTheme.typography.bodyLarge,
+                color = scheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(Space.xxs))
+            Text(
+                text = connection.url,
+                style = MaterialTheme.typography.labelSmall,
+                color = edge.faint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(Space.xxs))
+            val status = connection.lastStatus
+            if (status != null) {
+                Text(
+                    text = status,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = edge.warning,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            } else if (connection.lastUsedAt > 0L) {
+                Text(
+                    text = formatRelative(connection.lastUsedAt),
                     style = MaterialTheme.typography.labelSmall,
                     color = edge.faint,
                 )
             }
+        }
 
-            if (showAdvanced) {
-                EdgeTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    label = "Username",
-                    placeholder = "opencode",
-                    leadingIcon = EdgeIcons.Person,
-                    enabled = !connecting,
+        Box {
+            IconAction(
+                icon = EdgeIcons.More,
+                contentDescription = "Connection actions",
+                onClick = { menu = true },
+                size = Size.touchSm,
+                iconSize = Size.iconSm,
+            )
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text("Remove", color = scheme.error) },
+                    onClick = {
+                        menu = false
+                        onRemove()
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SaveToggle(checked: Boolean, onToggle: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val edge = LocalEdgeColors.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .tappable(onClick = onToggle),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Save for later",
+                style = MaterialTheme.typography.bodyLarge,
+                color = scheme.onSurface,
+            )
+            Text(
+                text = "Keep this server in the list on this device",
+                style = MaterialTheme.typography.bodySmall,
+                color = edge.faint,
+            )
+        }
+        Spacer(Modifier.width(Space.sm))
+        Switch(
+            checked = checked,
+            onCheckedChange = { onToggle() },
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = scheme.onPrimary,
+                checkedTrackColor = scheme.primary,
+                uncheckedThumbColor = edge.faint,
+                uncheckedTrackColor = scheme.surfaceContainerHigh,
+                uncheckedBorderColor = scheme.outline,
+            ),
+        )
+    }
+}
+
+/** Asks for the password a saved server needs; it is never written to disk. */
+@Composable
+private fun PasswordPrompt(
+    connection: SavedConnection,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val edge = LocalEdgeColors.current
+    var value by remember { mutableStateOf("") }
+    var visible by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = scheme.surfaceContainerHigh,
+        shape = MaterialTheme.shapes.large,
+        title = {
+            Text(
+                text = connection.name,
+                style = MaterialTheme.typography.titleLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.md)) {
+                Text(
+                    text = "This server needs a password. It is kept in memory for " +
+                        "this session and never saved to the device.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = edge.faint,
                 )
                 EdgeTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = "Password",
-                    placeholder = "Server password",
+                    value = value,
+                    onValueChange = { value = it },
+                    placeholder = "Password",
                     leadingIcon = EdgeIcons.Lock,
                     singleLine = true,
-                    enabled = !connecting,
                     imeAction = ImeAction.Done,
-                    visualTransformation = if (showPassword) {
+                    visualTransformation = if (visible) {
                         VisualTransformation.None
                     } else {
                         PasswordVisualTransformation()
                     },
                     trailing = {
                         TextAction(
-                            text = if (showPassword) "Hide" else "Show",
-                            onClick = { showPassword = !showPassword },
+                            text = if (visible) "Hide" else "Show",
+                            onClick = { visible = !visible },
                         )
                     },
                 )
             }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(value) },
+                enabled = value.isNotBlank(),
+            ) { Text("Connect") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
 
-            RememberRow(
-                checked = rememberServer,
-                onToggle = { rememberServer = !rememberServer },
-                enabled = !connecting,
-            )
+@Composable
+private fun RemoveDialog(
+    connection: SavedConnection,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val edge = LocalEdgeColors.current
 
-            if (failure != null) {
-                ErrorNotice(message = failure)
-            }
-
-            EdgeButton(
-                text = if (connecting) "Connecting" else "Connect",
-                onClick = { viewModel.connect(url, username, password, rememberServer) },
-                enabled = url.isNotBlank(),
-                loading = connecting,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(Stroke.hairline)
-                        .background(scheme.outlineVariant),
-                )
-                Text(
-                    text = "or",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = edge.faint,
-                    modifier = Modifier.padding(horizontal = Space.md),
-                )
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(Stroke.hairline)
-                        .background(scheme.outlineVariant),
-                )
-            }
-
-            // Deliberately the secondary action: with no server yet it is the
-            // path most people take, but Connect stays the screen's one primary.
-            EdgeSecondaryButton(
-                text = "Explore the demo",
-                icon = EdgeIcons.Terminal,
-                onClick = { viewModel.connectDemo(rememberServer) },
-                enabled = !connecting,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = scheme.surfaceContainerHigh,
+        shape = MaterialTheme.shapes.large,
+        title = { Text("Remove server?", style = MaterialTheme.typography.titleLarge) },
+        text = {
             Text(
-                text = "No server yet? The demo runs the whole interface against " +
-                    "sample data, including streaming replies, tool calls and " +
-                    "permission prompts.",
-                style = MaterialTheme.typography.bodySmall,
+                text = "\"${connection.name}\" will be removed from this list. " +
+                    "Any password for it is already memory-only and is forgotten.",
+                style = MaterialTheme.typography.bodyMedium,
                 color = edge.faint,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
             )
-        }
-
-        Spacer(Modifier.height(Space.xxxl))
-    }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text("Remove", color = scheme.error) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }
 
-@Composable
-private fun RememberRow(checked: Boolean, onToggle: () -> Unit, enabled: Boolean) {
-    val scheme = MaterialTheme.colorScheme
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.extraSmall)
-            .tappable(enabled = enabled, onClick = onToggle)
-            .padding(vertical = Space.xxs),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Space.sm),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(18.dp)
-                .clip(MaterialTheme.shapes.extraSmall)
-                .background(if (checked) scheme.primary.copy(alpha = 0.16f) else Color.Transparent)
-                .then(
-                    Modifier.borderBox(
-                        if (checked) scheme.primary else scheme.outline,
-                    ),
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (checked) {
-                androidx.compose.material3.Icon(
-                    imageVector = EdgeIcons.Check,
-                    contentDescription = null,
-                    tint = scheme.primary,
-                    modifier = Modifier.size(12.dp),
-                )
-            }
-        }
-        Text(
-            text = "Remember this server",
-            style = MaterialTheme.typography.bodyMedium,
-            color = scheme.onSurfaceVariant,
-        )
-    }
-}
-
-private fun Modifier.borderBox(color: Color): Modifier =
-    border(Stroke.thin, color, RoundedCornerShape(Radius.xs))
-
-/** Product mark: a terminal prompt in a rounded tile. */
-@Composable
-private fun EdgeMark() {
-    val scheme = MaterialTheme.colorScheme
-    Box(
-        modifier = Modifier
-            .size(64.dp)
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.lg))
-            .background(scheme.primary),
-        contentAlignment = Alignment.Center,
-    ) {
-        androidx.compose.material3.Icon(
-            imageVector = EdgeIcons.Terminal,
-            contentDescription = null,
-            tint = scheme.onPrimary,
-            modifier = Modifier.size(Size.iconXl),
-        )
-    }
-}
+private val SavedConnection.needsPassword: Boolean
+    get() = lastStatus?.contains("password", ignoreCase = true) == true

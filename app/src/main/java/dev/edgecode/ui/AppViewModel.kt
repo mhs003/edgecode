@@ -13,6 +13,8 @@ import dev.edgecode.core.model.ServerProfile
 import dev.edgecode.core.model.SessionSummary
 import dev.edgecode.data.AppRepository
 import dev.edgecode.data.Catalog
+import dev.edgecode.data.ConnectionsStore
+import dev.edgecode.data.SavedConnection
 import dev.edgecode.data.SessionChatState
 import dev.edgecode.data.Settings
 import dev.edgecode.data.SettingsStore
@@ -36,6 +38,7 @@ sealed interface Screen {
 
 class AppViewModel(
     private val settings: SettingsStore,
+    private val connections: ConnectionsStore,
 ) : ViewModel() {
 
     /**
@@ -51,6 +54,14 @@ class AppViewModel(
     val permissions: StateFlow<List<PermissionRequest>> = repository.permissions
     val catalog: StateFlow<Catalog> = repository.catalog
     val settings_: StateFlow<Settings> = settings.state
+    val savedConnections: StateFlow<List<SavedConnection>> = connections.state
+
+    /**
+     * In-memory passwords, keyed by (normalised) URL. A password is never written
+     * to disk, so this is what lets a retry — or a tap on a saved server — reuse
+     * the password the user already typed without prompting again.
+     */
+    private val passwords = mutableMapOf<String, String>()
 
     private val _stack = MutableStateFlow<List<Screen>>(listOf(Screen.Connect))
     val stack: StateFlow<List<Screen>> = _stack.asStateFlow()
@@ -89,22 +100,84 @@ class AppViewModel(
 
     fun connect(url: String, username: String?, password: String?, remember: Boolean) {
         val normalized = normalizeUrl(url)
+        val user = username?.takeIf { it.isNotBlank() }
+        val secret = password?.takeIf { it.isNotBlank() }
+        if (secret != null) passwords[normalized] = secret
         val profile = ServerProfile(
             id = "profile",
             name = normalized,
             url = normalized,
-            username = username?.takeIf { it.isNotBlank() },
-            password = password?.takeIf { it.isNotBlank() },
+            username = user,
+            password = secret,
+        )
+        val saved = if (remember) rememberServer(normalized, user) else null
+        scope.launch {
+            repository.connect(profile)
+            val state = repository.connection.value
+            if (state.isConnected) {
+                saved?.let { connections.markUsed(it.id) }
+                if (remember) settings.saveServer(normalized, normalized, user)
+                _stack.value = listOf(Screen.Sessions)
+            } else if (state is ConnectionState.Failed) {
+                saved?.let { connections.touch(it.id, state.message) }
+            }
+        }
+    }
+
+    /**
+     * Connect to a server the user picked from their saved list. [password] is
+     * only supplied when the user was just asked for it; otherwise the password
+     * cached for this URL (if the user typed one earlier this session) is reused.
+     */
+    fun connectSaved(connection: SavedConnection, password: String?) {
+        val url = connection.url
+        val secret = password?.takeIf { it.isNotBlank() } ?: passwords[url]
+        if (secret != null) passwords[url] = secret
+        val profile = ServerProfile(
+            id = connection.id,
+            name = connection.name,
+            url = url,
+            username = connection.username,
+            password = secret,
         )
         scope.launch {
             repository.connect(profile)
-            if (repository.connection.value.isConnected) {
-                if (remember) {
-                    settings.saveServer(normalized, normalized, profile.username)
-                }
+            val state = repository.connection.value
+            if (state.isConnected) {
+                connections.markUsed(connection.id)
+                settings.saveServer(url, connection.name, connection.username)
                 _stack.value = listOf(Screen.Sessions)
+            } else if (state is ConnectionState.Failed) {
+                connections.touch(connection.id, state.message)
             }
         }
+    }
+
+    /**
+     * Drops the cached password for a saved connection so the next attempt asks
+     * for it again. The connection itself stays in the list.
+     */
+    fun forgetSaved(id: String) {
+        val saved = connections.findById(id) ?: return
+        passwords.remove(saved.url)
+    }
+
+    fun removeSavedConnection(id: String) {
+        forgetSaved(id)
+        connections.remove(id)
+    }
+
+    private fun rememberServer(url: String, username: String?): SavedConnection {
+        val existing = connections.find(url, username)
+        val connection = SavedConnection(
+            id = existing?.id ?: java.util.UUID.randomUUID().toString(),
+            name = url,
+            url = url,
+            username = username,
+            lastUsedAt = System.currentTimeMillis(),
+        )
+        connections.save(connection)
+        return connection
     }
 
     fun connectDemo(remember: Boolean = false) {
@@ -129,7 +202,13 @@ class AppViewModel(
         scope.launch {
             if (saved.hasSavedServer) {
                 repository.connect(
-                    ServerProfile("saved", saved.serverName, saved.serverUrl, saved.serverUsername),
+                    ServerProfile(
+                        id = "saved",
+                        name = saved.serverName,
+                        url = saved.serverUrl,
+                        username = saved.serverUsername,
+                        password = passwords[saved.serverUrl.trimEnd('/')],
+                    ),
                 )
             }
             _reconnecting.value = false
@@ -258,9 +337,10 @@ class AppViewModel(
 
 class AppViewModelFactory(
     private val settings: SettingsStore,
+    private val connections: ConnectionsStore,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         @Suppress("UNCHECKED_CAST")
-        return AppViewModel(settings) as T
+        return AppViewModel(settings, connections) as T
     }
 }
