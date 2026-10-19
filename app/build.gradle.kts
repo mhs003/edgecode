@@ -1,7 +1,24 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+// The version lives outside this file so the release workflow can read it
+// without parsing Gradle, and so bumping it is one command rather than two
+// edits that can drift apart.
+val appVersion = Properties().apply {
+    rootProject.file("version.properties").inputStream().use { load(it) }
+}
+
+// A release build is only truly releasable when it is signed. CI supplies a
+// keystore through the environment; when there is none — a local build, or a
+// fork without the secrets — the debug key is used instead, which still
+// produces an installable APK rather than an unsigned one.
+val releaseKeystore = System.getenv("KEYSTORE_PATH")
+    ?.let { file(it) }
+    ?.takeIf { it.exists() }
 
 android {
     namespace = "dev.edgecode"
@@ -15,9 +32,20 @@ android {
         applicationId = "dev.edgecode"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersion.getProperty("versionCode").toInt()
+        versionName = appVersion.getProperty("versionName")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            releaseKeystore?.let { keystore ->
+                storeFile = keystore
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -31,6 +59,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = if (releaseKeystore != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
