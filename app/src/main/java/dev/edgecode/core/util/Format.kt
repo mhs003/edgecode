@@ -38,6 +38,34 @@ fun formatDuration(ms: Long): String = when {
     else -> "${ms / 60_000}m ${(ms % 60_000) / 1000}s"
 }
 
+/**
+ * The line under a settled reply: which model served it, how much it produced,
+ * and how fast.
+ *
+ * The rate covers the whole turn — including the pause before the first token,
+ * which is the wait the reader actually sits through — over the output tokens
+ * only. Anything unknown is left out rather than printed as a zero, so a
+ * server that reports no timings or no usage simply shows less.
+ */
+fun formatResponseMeta(
+    model: String?,
+    outputTokens: Int,
+    startedAt: Long,
+    completedAt: Long?,
+): String? {
+    val elapsedMs = completedAt?.let { it - startedAt }?.takeIf { it > 0 }
+    val rate = elapsedMs
+        ?.takeIf { outputTokens > 0 }
+        ?.let { Math.round(outputTokens * 1000.0 / it).toInt() }
+
+    val parts = buildList {
+        if (!model.isNullOrBlank()) add(model)
+        if (outputTokens > 0) add("${formatCount(outputTokens)} tokens")
+        if (rate != null && rate > 0) add("$rate tok/s")
+    }
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+}
+
 /** Compact relative time: `now`, `4m`, `3h`, `2d`, then an absolute date. */
 fun formatRelative(epochMillis: Long, now: Long = System.currentTimeMillis()): String {
     val delta = now - epochMillis

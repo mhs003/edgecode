@@ -72,4 +72,46 @@ class FormatTest {
         assertEquals(1, diff.additions)
         assertEquals(1, diff.deletions)
     }
+
+    @Test
+    fun `describes a finished reply by model, size and pace`() {
+        assertEquals(
+            "Claude Opus 4.5 · 1,200 tokens · 30 tok/s",
+            formatResponseMeta(
+                model = "Claude Opus 4.5",
+                outputTokens = 1_200,
+                startedAt = 1_000_000,
+                completedAt = 1_040_000,
+            ),
+        )
+    }
+
+    @Test
+    fun `leaves out what the server did not report`() {
+        // No timings, no rate.
+        assertEquals(
+            "GPT-5.5 · 84 tokens",
+            formatResponseMeta("GPT-5.5", 84, 0L, null),
+        )
+        // No usage at all, but the model is still worth naming.
+        assertEquals(
+            "GPT-5.5",
+            formatResponseMeta("GPT-5.5", 0, 1_000, 5_000),
+        )
+        // Nothing known at all: show nothing rather than a row of zeroes.
+        assertEquals(null, formatResponseMeta(null, 0, 0L, null))
+    }
+
+    @Test
+    fun `rejects a rate from a turn with no measurable duration`() {
+        // A zero or backwards timestamp would otherwise divide into Infinity.
+        assertEquals(
+            "Kimi K2 · 10 tokens",
+            formatResponseMeta("Kimi K2", 10, 5_000, 5_000),
+        )
+        assertEquals(
+            "Kimi K2 · 10 tokens",
+            formatResponseMeta("Kimi K2", 10, 9_000, 5_000),
+        )
+    }
 }
