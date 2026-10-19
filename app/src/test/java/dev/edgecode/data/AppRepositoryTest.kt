@@ -116,7 +116,7 @@ class AppRepositoryTest {
     fun catalogueFetchesOverlapRatherThanSerialising() = runBlocking {
         val api = FakeApi(latencyMs = 100)
         var built: OpenCodeApi? = null
-        val repository = AppRepository(this) { built = api; api }
+        val repository = AppRepository(this) { _, _ -> built = api; api }
 
         val started = System.nanoTime()
         repository.connect(ServerProfile("t", "test", "http://localhost:4096"))
@@ -140,7 +140,7 @@ class AppRepositoryTest {
     @Test
     fun connectSucceedsAndPublishesTheSessionList() = runBlocking {
         val api = FakeApi(latencyMs = 1)
-        val repository = AppRepository(this) { api }
+        val repository = AppRepository(this) { _, _ -> api }
 
         repository.connect(ServerProfile("t", "test", "http://localhost:4096"))
 

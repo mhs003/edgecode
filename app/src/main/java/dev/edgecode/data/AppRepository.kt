@@ -15,6 +15,8 @@ import dev.edgecode.core.model.ServerEvent
 import dev.edgecode.core.model.SessionSummary
 import dev.edgecode.core.model.SlashCommand
 import dev.edgecode.data.demo.DemoOpenCodeApi
+import dev.edgecode.data.net.HttpOpenCodeApi
+import dev.edgecode.data.net.HttpTransport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -72,7 +74,19 @@ class AppRepository(
      * behaviour of the connect path can be tested on the JVM without a device,
      * and so the real v1 client can be dropped in without touching this class.
      */
-    private val apiFactory: (CoroutineScope) -> OpenCodeApi = { DemoOpenCodeApi(it) },
+    private val apiFactory: (CoroutineScope, ServerProfile) -> OpenCodeApi = { scope, profile ->
+        if (profile.url.startsWith("demo://")) {
+            DemoOpenCodeApi(scope)
+        } else {
+            HttpOpenCodeApi(
+                HttpTransport(
+                    baseUrl = profile.url,
+                    username = profile.username,
+                    password = profile.password,
+                ),
+            )
+        }
+    },
 ) {
 
     private var api: OpenCodeApi? = null
@@ -112,7 +126,7 @@ class AppRepository(
     suspend fun connect(profile: ServerProfile) {
         disconnect()
         _connection.value = ConnectionState.Connecting(profile)
-        val client = apiFactory(scope)
+        val client = apiFactory(scope, profile)
         api = client
         try {
             val info = client.health()
