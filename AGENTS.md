@@ -147,3 +147,34 @@ Current chat clients render one canvas with one fill. Match that.
 
 Short, meaningful subject lines. Commit at each coherent point rather than
 batching unrelated work.
+
+## Versioning and releases
+
+`version.properties` holds `versionCode` and `versionName`. `app/build.gradle.kts`
+reads it; nothing else may hard-code a version.
+
+**Before every push:**
+
+1. Run `scripts/bump-version.sh [major|minor|patch|X.Y.Z]` — default `patch`. It
+   increments `versionCode` by one and the name in step. Never edit the file by
+   hand: `versionCode` must strictly increase or Android will refuse to install
+   the new APK over the old one.
+2. Move the entries under `## [Unreleased]` in `CHANGELOG.md` into a new
+   `## [<new version>] - <YYYY-MM-DD>` section, leaving `Unreleased` empty. Those
+   entries are published verbatim as the release notes, so write them for
+   someone reading a release page, not for someone reading a diff.
+3. Commit the bump and the changelog alongside the work being shipped, so a
+   commit that changes behaviour and the version that ships it are the same
+   commit.
+
+`.github/workflows/release.yml` tests every push to `master`, then publishes
+only when no `vX.Y.Z` tag exists for the current `versionName`: it builds a
+minified `assembleRelease` APK, checks that it is signed, tags the commit and
+creates the release with the APK attached. Pushing without bumping therefore
+tests but releases nothing.
+
+The workflow signs with `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and
+`KEY_PASSWORD` repository secrets. When they are absent it falls back to the
+debug key so the APK still installs — acceptable for personal builds, not for
+something you hand to strangers, and the workflow logs a warning when it does.
+
