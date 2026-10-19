@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  An OpenCode server is self-hosted and speaks plain HTTP: on the phone itself
+  (127.0.0.1:4096 under Termux) or on a LAN address. Android blocks cleartext by
+  default, which would make every connection to a default server fail, so
+  cleartext is permitted here rather than scoped to localhost.
+
+  This is a developer tool talking to a server the user runs themselves; there
+  is no third-party origin to protect.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
