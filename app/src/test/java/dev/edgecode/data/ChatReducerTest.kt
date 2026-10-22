@@ -381,6 +381,25 @@ class ChatReducerTest {
     }
 
     @Test
+    fun `a session status event moves only the session it names`() {
+        val sessions = listOf(
+            dev.edgecode.core.model.SessionSummary("a", "A", "/", 0L, 0L),
+            dev.edgecode.core.model.SessionSummary("b", "B", "/", 0L, 0L),
+        )
+
+        val result = ChatReducer.reduceSessions(
+            sessions,
+            ServerEvent.SessionStatusChanged(
+                "b",
+                dev.edgecode.core.model.SessionStatus.Working,
+            ),
+        )
+
+        assertEquals(dev.edgecode.core.model.SessionStatus.Idle, result.first().status)
+        assertEquals(dev.edgecode.core.model.SessionStatus.Working, result.last().status)
+    }
+
+    @Test
     fun `a non-text delta field is ignored`() {
         var messages = ChatReducer.reduceMessages(
             emptyList(),

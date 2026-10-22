@@ -76,6 +76,12 @@ carries the message the banner shows.
 is a plain list, re-entering a session re-fetches rather than trusting whatever
 the event stream happened to deliver.
 
+**Open a subagent.** A `task` part names the child session it spawned in its
+metadata, so the transcript links to it, and the header chip lists every child
+while one is running. Both routes call `openSubagent`, which pushes the same Chat
+destination in a read-only mode: the conversation is driven by the agent that
+spawned it, so there is no composer.
+
 **Send.** `Composer` → `AppViewModel.send` → `AppRepository.sendPrompt`. The
 optimistic user message is not constructed locally: the API emits
 `ServerEvent.MessageUpserted`, which is reduced into state by the same path a
@@ -94,6 +100,10 @@ therefore a real blocking round-trip, not a mocked animation.
 
 - `AppRepository` holds `StateFlow`s for connection, sessions, permissions and
   the catalog, plus one `StateFlow<SessionChatState>` per opened session.
+- Sessions are published as two views of one list. A subagent is an ordinary
+  session carrying a `parentId`, so `sessions` (roots) and `subagents` (children)
+  are split in the repository rather than filtered in a screen: a chat's children
+  must stay reachable precisely because they are not chats of their own.
 - All mutation of that state goes through `ChatReducer`, a set of pure functions
   `(State, ServerEvent) -> State`.
 - `ChatReducer` has no Android or coroutine types. The bulk of the app's real
@@ -147,6 +157,7 @@ The replacement keeps the useful half of that property explicitly:
 | 14 | Session statistics behind the overflow menu | Token totals, cost, diff size and context percentage describe the whole session, so they moved out of the transcript. Repeating them under every reply turned the conversation into a log. Context pressure is the one figure that changes what you do next, so it alone surfaces automatically — as a chip in the header once it passes 80% |
 | 15 | Per-turn meta footer removed | The agent name, model and cost are visible in the composer and the overflow menu. A settled turn now shows exactly one action (copy). Rejected: keeping a four-field footer for parity with the old design |
 | 16 | Top-anchored transcript with explicit follow | See *Transcript layout* above |
+| 17 | Subagents are branches, not chats | A `task` call creates an ordinary child session, and the server lists it beside every real session. The repository splits on `parentId`; the chat reaches its children from the call that spawned them and from a chip while they run. Rejected: filtering only in the session list — the subagent would then have no way back into the UI |
 
 ## Invariants
 
@@ -214,6 +225,13 @@ only against a reading of the spec.
   letting that frame replace the part outright is self-correcting — no
   reconciliation needed.
 - The event payload is under `properties`, not `data`.
+- **A session carries no status.** `session.status` (`busy` / `retry` / `idle`) is
+  the live signal and `GET /session/status` is the REST half; the map omits idle
+  sessions. Reading only the session payload leaves every row looking idle, which
+  is what made an in-progress session indistinguishable from a dormant one.
+- A `task` tool part names its child session at `state.metadata.sessionId`, with
+  `parentSessionId` beside it. The output repeats the id inside a `<task id=…>`
+  string, which is the fallback if metadata is ever dropped.
 - A part id is a server-side `prt_…` identity. Sending the client's message id
   on a part is rejected with a 400.
 - Step boundaries are structure, not content, and are not mapped at all.

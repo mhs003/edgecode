@@ -12,6 +12,7 @@ import dev.edgecode.core.model.ProviderInfo
 import dev.edgecode.core.model.ServerEvent
 import dev.edgecode.core.model.ServerInfo
 import dev.edgecode.core.model.SessionSummary
+import dev.edgecode.core.model.SessionStatus
 import dev.edgecode.core.model.SlashCommand
 import dev.edgecode.core.util.asArray
 import dev.edgecode.core.util.asObject
@@ -67,6 +68,9 @@ class HttpOpenCodeApi(
                 .map { OpenCodeWire.session(it) }
                 .sortedByDescending { it.updatedAt }
         }
+
+    override suspend fun sessionStatuses(): Map<String, SessionStatus> =
+        OpenCodeWire.statuses(get("/session/status"))
 
     override suspend fun createSession(directory: String?, title: String?): SessionSummary {
         val body = dev.edgecode.core.util.JsonValue.Obj(

@@ -62,6 +62,7 @@ fun MessageRow(
     showReasoning: Boolean = true,
     expandTools: Boolean = false,
     modelLabel: String? = null,
+    onOpenSubagent: ((String) -> Unit)? = null,
 ) {
     when (message) {
         is ChatMessage.User -> UserMessageRow(message, modifier)
@@ -71,6 +72,7 @@ fun MessageRow(
             showReasoning = showReasoning,
             expandTools = expandTools,
             modelLabel = modelLabel,
+            onOpenSubagent = onOpenSubagent,
         )
     }
 }
@@ -118,6 +120,7 @@ private fun AssistantMessageRow(
     showReasoning: Boolean,
     expandTools: Boolean,
     modelLabel: String?,
+    onOpenSubagent: ((String) -> Unit)? = null,
 ) {
     val edge = LocalEdgeColors.current
     val copy = rememberCopyAction()
@@ -138,6 +141,7 @@ private fun AssistantMessageRow(
                 showReasoning = showReasoning,
                 expandTools = expandTools,
                 isLast = index == message.parts.lastIndex,
+                onOpenSubagent = onOpenSubagent,
             )
         }
         if (message.error != null) {

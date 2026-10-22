@@ -132,8 +132,25 @@ class AppRepository(
     private val _connection = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val connection: StateFlow<ConnectionState> = _connection.asStateFlow()
 
+    /**
+     * Every session the server reports, including the ones a `task` call
+     * spawned. A subagent is an ordinary session with a `parentId`; it is a
+     * branch of a chat, not a chat of its own, so it must never reach the list.
+     */
+    private val _allSessions = MutableStateFlow<List<SessionSummary>>(emptyList())
+
     private val _sessions = MutableStateFlow<List<SessionSummary>>(emptyList())
     val sessions: StateFlow<List<SessionSummary>> = _sessions.asStateFlow()
+
+    private val _subagents = MutableStateFlow<List<SessionSummary>>(emptyList())
+    val subagents: StateFlow<List<SessionSummary>> = _subagents.asStateFlow()
+
+    /** Splits one fetched or event-updated list into the two views the UI reads. */
+    private fun publishSessions(all: List<SessionSummary>) {
+        _allSessions.value = all
+        _sessions.value = all.filter { it.parentId == null }
+        _subagents.value = all.filter { it.parentId != null }
+    }
 
     private val _permissions = MutableStateFlow<List<PermissionRequest>>(emptyList())
     val permissions: StateFlow<List<PermissionRequest>> = _permissions.asStateFlow()
@@ -200,7 +217,7 @@ class AppRepository(
         scope.launch { api?.close() }
         api = null
         _connection.value = ConnectionState.Disconnected
-        _sessions.value = emptyList()
+        publishSessions(emptyList())
         _permissions.value = emptyList()
         _catalog.value = Catalog()
         chats.clear()
@@ -216,10 +233,10 @@ class AppRepository(
 
     private fun apply(event: ServerEvent) {
         when (event) {
-            is ServerEvent.SessionUpserted ->
-                _sessions.update { ChatReducer.reduceSessions(it, event) }
-            is ServerEvent.SessionRemoved ->
-                _sessions.update { ChatReducer.reduceSessions(it, event) }
+            is ServerEvent.SessionUpserted,
+            is ServerEvent.SessionRemoved,
+            is ServerEvent.SessionStatusChanged ->
+                publishSessions(ChatReducer.reduceSessions(_allSessions.value, event))
             is ServerEvent.PermissionRequested,
             is ServerEvent.PermissionResolved ->
                 _permissions.update { ChatReducer.reducePermissions(it, event) }
@@ -265,8 +282,16 @@ class AppRepository(
 
     suspend fun refreshSessions() {
         val client = api ?: return
-        runCatching { client.sessions() }
-            .onSuccess { _sessions.value = it }
+        val fetched = runCatching { client.sessions() }.getOrNull() ?: return
+        // Status is the one thing a session payload does not carry. Merging it
+        // here is what makes the list correct on entry, rather than only after
+        // the next `session.status` event — and the event stream is lossy.
+        val statuses = runCatching { client.sessionStatuses() }.getOrDefault(emptyMap())
+        publishSessions(
+            fetched.map { session ->
+                statuses[session.id]?.let { session.copy(status = it) } ?: session
+            },
+        )
     }
 
     fun openSession(sessionId: String) {
@@ -290,7 +315,12 @@ class AppRepository(
         scope.launch {
             runCatching { client.createSession(directory, title) }
                 .onSuccess { session ->
-                    _sessions.update { listOf(session) + it }
+                    publishSessions(
+                        ChatReducer.reduceSessions(
+                            _allSessions.value,
+                            ServerEvent.SessionUpserted(session),
+                        ),
+                    )
                     onCreated(session)
                 }
         }
@@ -305,7 +335,7 @@ class AppRepository(
         val client = api ?: return
         scope.launch {
             runCatching { client.deleteSession(sessionId) }
-            _sessions.update { list -> list.filterNot { it.id == sessionId } }
+            publishSessions(_allSessions.value.filterNot { it.id == sessionId })
             chats.remove(sessionId)
             chatViews.remove(sessionId)
         }

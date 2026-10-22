@@ -124,6 +124,13 @@ class DemoOpenCodeApi(
         return sessions.values.sortedByDescending { it.updatedAt }
     }
 
+    override suspend fun sessionStatuses(): Map<String, SessionStatus> {
+        delay(scaled(Latency.Sessions))
+        return sessions.values
+            .filter { it.status != SessionStatus.Idle }
+            .associate { it.id to it.status }
+    }
+
     override suspend fun createSession(directory: String?, title: String?): SessionSummary {
         delay(scaled(Latency.CreateSession))
         val now = System.currentTimeMillis()
@@ -505,7 +512,10 @@ class DemoOpenCodeApi(
         val session = sessions[sessionId] ?: return
         val updated = session.copy(status = status, updatedAt = System.currentTimeMillis())
         sessions[sessionId] = updated
-        emit(ServerEvent.SessionUpserted(updated))
+        // The real server reports status over its own event rather than by
+        // re-sending the session, so the demo does the same and exercises the
+        // path the UI actually uses.
+        emit(ServerEvent.SessionStatusChanged(sessionId, status))
     }
 
     private fun commandReply(command: String, arguments: String): String = when (command) {

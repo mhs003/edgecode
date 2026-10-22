@@ -128,6 +128,12 @@ data class ToolState(
     val output: String? = null,
     val meta: List<Pair<String, String>> = emptyList(),
     val durationMs: Long? = null,
+    /**
+     * Session this tool is bound to. A `task` call spawns a child session and
+     * names it in its metadata; that id is the only way back to the subagent's
+     * transcript once the call settles.
+     */
+    val subagentId: String? = null,
 )
 
 // --- Diffs -----------------------------------------------------------------
@@ -369,5 +375,15 @@ sealed interface ServerEvent {
     data class PermissionResolved(val requestId: String) : ServerEvent
     data class SessionIdle(val sessionId: String) : ServerEvent
     data class SessionFailed(val sessionId: String, val message: String) : ServerEvent
+
+    /**
+     * `session.status` from the server. A session carries no status field in its
+     * own payload, so this is the only live signal that a session is busy —
+     * including one the user is not looking at.
+     */
+    data class SessionStatusChanged(
+        val sessionId: String,
+        val status: SessionStatus,
+    ) : ServerEvent
     data class Disconnected(val reason: String) : ServerEvent
 }

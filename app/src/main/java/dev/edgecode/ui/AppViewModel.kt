@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
 sealed interface Screen {
     data object Connect : Screen
     data object Sessions : Screen
-    data class Chat(val sessionId: String) : Screen
+    data class Chat(val sessionId: String, val readOnly: Boolean = false) : Screen
     data object Settings : Screen
 }
 
@@ -52,6 +52,7 @@ class AppViewModel(
 
     val connection: StateFlow<ConnectionState> = repository.connection
     val sessions: StateFlow<List<SessionSummary>> = repository.sessions
+    val subagents: StateFlow<List<SessionSummary>> = repository.subagents
     val permissions: StateFlow<List<PermissionRequest>> = repository.permissions
     val catalog: StateFlow<Catalog> = repository.catalog
     val settings_: StateFlow<Settings> = settings.state
@@ -235,6 +236,16 @@ class AppViewModel(
     fun openSession(sessionId: String) {
         repository.openSession(sessionId)
         _stack.update { it + Screen.Chat(sessionId) }
+    }
+
+    /**
+     * Opens a subagent's transcript. It is read-only: the subagent is driven by
+     * the agent that spawned it, and a prompt typed here would be outside that
+     * conversation.
+     */
+    fun openSubagent(sessionId: String) {
+        repository.openSession(sessionId)
+        _stack.update { it + Screen.Chat(sessionId, readOnly = true) }
     }
 
     fun toTop() {

@@ -13,6 +13,7 @@ import dev.edgecode.core.model.ServerEvent
 import dev.edgecode.core.model.ServerInfo
 import dev.edgecode.core.model.ServerProfile
 import dev.edgecode.core.model.SessionSummary
+import dev.edgecode.core.model.SessionStatus
 import dev.edgecode.core.model.SlashCommand
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -36,7 +37,11 @@ class AppRepositoryTest {
      * with concurrent fetches all of them suspend before any resumes, so the
      * peak is the number of calls; run sequentially the peak is always one.
      */
-    private class FakeApi(private val latencyMs: Long = 100) : OpenCodeApi {
+    private class FakeApi(
+        private val latencyMs: Long = 100,
+        private val sessionList: List<SessionSummary> = emptyList(),
+        private val statuses: Map<String, SessionStatus> = emptyMap(),
+    ) : OpenCodeApi {
 
         private val inFlight = AtomicInteger(0)
         private val peak = AtomicInteger(0)
@@ -60,7 +65,9 @@ class AppRepositoryTest {
             call(ServerInfo(version = "0.0.0-test", healthy = true, api = ApiVersion.V1))
 
         override suspend fun projects(): List<ProjectRef> = call(emptyList())
-        override suspend fun sessions(): List<SessionSummary> = call(emptyList())
+        override suspend fun sessions(): List<SessionSummary> = call(sessionList)
+
+        override suspend fun sessionStatuses(): Map<String, SessionStatus> = call(statuses)
 
         override suspend fun createSession(directory: String?, title: String?): SessionSummary =
             call(
@@ -147,5 +154,38 @@ class AppRepositoryTest {
 
         assertTrue(repository.connection.value.isConnected)
         assertTrue(repository.sessions.value.isEmpty())
+    }
+
+    /**
+     * A `task` call creates an ordinary session with a `parentID`. It belongs to
+     * the chat that spawned it, so listing it as a chat of its own is wrong.
+     */
+    @Test
+    fun subagentSessionsAreSeparatedFromTheSessionList() = runBlocking {
+        val root = SessionSummary("root", "Root", "/", 0L, 0L)
+        val child = SessionSummary("child", "Child", "/", 0L, 0L, parentId = "root")
+        val api = FakeApi(latencyMs = 1, sessionList = listOf(root, child))
+        val repository = AppRepository(this) { _, _ -> api }
+
+        repository.connect(ServerProfile("t", "test", "http://localhost:4096"))
+
+        assertEquals(listOf("root"), repository.sessions.value.map { it.id })
+        assertEquals(listOf("child"), repository.subagents.value.map { it.id })
+    }
+
+    /** Status is not in a session payload, so the list has to merge it in. */
+    @Test
+    fun refreshMergesStatusFromTheStatusEndpoint() = runBlocking {
+        val root = SessionSummary("root", "Root", "/", 0L, 0L)
+        val api = FakeApi(
+            latencyMs = 1,
+            sessionList = listOf(root),
+            statuses = mapOf("root" to SessionStatus.Working),
+        )
+        val repository = AppRepository(this) { _, _ -> api }
+
+        repository.connect(ServerProfile("t", "test", "http://localhost:4096"))
+
+        assertEquals(SessionStatus.Working, repository.sessions.value.single().status)
     }
 }

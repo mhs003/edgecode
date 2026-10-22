@@ -85,6 +85,21 @@ object OpenCodeWire {
         return if (compacting != null && compacting > 0) SessionStatus.Working else SessionStatus.Idle
     }
 
+    /**
+     * A status union as the server sends it: `{type: "idle"}`, `{type: "busy"}`
+     * or `{type: "retry", …}`. An unknown variant degrades to idle rather than
+     * throwing — this union grows between minor versions.
+     */
+    fun sessionStatus(json: JsonValue?): SessionStatus = when (json?.string("type")) {
+        "busy", "retry" -> SessionStatus.Working
+        else -> SessionStatus.Idle
+    }
+
+    /** `GET /session/status` maps each session id to its status union. */
+    fun statuses(json: JsonValue): Map<String, SessionStatus> =
+        json.asObject.orEmpty()
+            .mapValues { (_, value) -> sessionStatus(value) }
+
     private fun modelLabel(model: JsonValue): String? {
         val provider = model.string("providerID")
         val id = model.string("id") ?: model.string("modelID")
@@ -280,6 +295,10 @@ object OpenCodeWire {
 
         val input = json.obj("input")?.encode()
         val title = json.string("title")
+        // A `task` call records the child session it spawned here. Nothing else
+        // in the part points at it, and the output only names it inside a
+        // `<task id=…>` wrapper, so metadata is the reliable source.
+        val subagentId = json.obj("metadata")?.string("sessionId")
 
         return when (json.string("status")) {
             "pending" -> ToolState(status = ToolStatus.Pending)
@@ -288,6 +307,7 @@ object OpenCodeWire {
                 status = ToolStatus.Running,
                 title = title,
                 input = input,
+                subagentId = subagentId,
             )
 
             "completed" -> ToolState(
@@ -296,6 +316,7 @@ object OpenCodeWire {
                 input = input,
                 output = json.string("output"),
                 durationMs = duration,
+                subagentId = subagentId,
             )
 
             "error" -> ToolState(
@@ -304,6 +325,7 @@ object OpenCodeWire {
                 input = input,
                 output = json.string("error"),
                 durationMs = duration,
+                subagentId = subagentId,
             )
 
             else -> ToolState(status = ToolStatus.Pending)
@@ -520,6 +542,13 @@ object OpenCodeWire {
 
             "session.idle" -> properties.string("sessionID")?.let {
                 ServerEvent.SessionIdle(it)
+            }
+
+            // The authoritative working signal. `busy` covers a turn in flight;
+            // `retry` is a provider failure the server is retrying, which is
+            // still work in progress. Anything else is idle.
+            "session.status" -> properties.string("sessionID")?.let { id ->
+                ServerEvent.SessionStatusChanged(id, sessionStatus(properties.obj("status")))
             }
 
             "session.error" -> {

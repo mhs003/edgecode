@@ -92,7 +92,11 @@ private fun EdgeApp(viewModel: AppViewModel) {
             Screen.Connect -> ConnectScreen(viewModel)
             Screen.Sessions -> SessionsScreen(viewModel)
             Screen.Settings -> SettingsScreen(viewModel)
-            is Screen.Chat -> ChatScreen(sessionId = screen.sessionId, viewModel = viewModel)
+            is Screen.Chat -> ChatScreen(
+                sessionId = screen.sessionId,
+                readOnly = screen.readOnly,
+                viewModel = viewModel,
+            )
         }
     }
 }

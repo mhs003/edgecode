@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -76,6 +77,7 @@ fun PartView(
     showReasoning: Boolean = true,
     expandTools: Boolean = false,
     isLast: Boolean = false,
+    onOpenSubagent: ((String) -> Unit)? = null,
 ) {
     when (part) {
         is Part.Text -> Row(modifier = modifier) {
@@ -94,6 +96,7 @@ fun PartView(
             part = part,
             modifier = modifier,
             defaultExpanded = expandTools,
+            onOpenSubagent = onOpenSubagent,
         )
 
         is Part.Attachment -> AttachmentInline(part.attachment, modifier)
@@ -199,6 +202,7 @@ private fun ToolCallRow(
     part: Part.Tool,
     modifier: Modifier = Modifier,
     defaultExpanded: Boolean = false,
+    onOpenSubagent: ((String) -> Unit)? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
     val edge = LocalEdgeColors.current
@@ -288,8 +292,51 @@ private fun ToolCallRow(
                         body = output,
                     )
                 }
+                // The task call is the only place the parent transcript points
+                // at the child conversation. It stays available after the call
+                // settles, so the subagent can be revisited at any time.
+                state.subagentId?.let { childId ->
+                    if (onOpenSubagent != null) {
+                        SubagentLink(onClick = { onOpenSubagent(childId) })
+                    }
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun SubagentLink(onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = Size.touchSm)
+            .clip(MaterialTheme.shapes.small)
+            .background(scheme.surfaceContainer)
+            .tappable(onClick = onClick)
+            .padding(horizontal = Space.md, vertical = Space.sm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Space.sm),
+    ) {
+        Icon(
+            imageVector = EdgeIcons.Branch,
+            contentDescription = null,
+            tint = scheme.primary,
+            modifier = Modifier.size(Size.iconSm),
+        )
+        Text(
+            text = "View subagent",
+            style = MaterialTheme.typography.labelMedium,
+            color = scheme.primary,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            imageVector = EdgeIcons.ChevronRight,
+            contentDescription = null,
+            tint = scheme.primary,
+            modifier = Modifier.size(12.dp),
+        )
     }
 }
 

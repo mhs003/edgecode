@@ -10,6 +10,20 @@ release workflow uses the section below as the release notes.
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-22
+
+### Added
+
+- Subagents. A `task` call now links to the session it spawned, a header chip
+  appears while any subagent is running and lists them, and each one opens
+  read-only.
+- The session list shows which sessions are still working.
+
+### Fixed
+
+- Sessions spawned by a subagent no longer appear as chats of their own in the
+  session list.
+
 ## [1.0.1] - 2026-10-19
 
 ### Changed

@@ -463,6 +463,16 @@ Read from the live server. The parts that are easy to get wrong:
 - **`Part.Text` carries `time.end`** — absent means still streaming. This is how
   `streaming` is decided on a REST fetch, without relying on the event stream.
 - **Errors** are a union on `error.name`; only `data.message` is surfaced.
+- **Subagent links** are at `state.metadata.sessionId` on a `task` part, with
+  `parentSessionId` beside it. The output repeats the id inside `<task id="…">`.
+- **Session status is not in the session payload.** `GET /session/status` returns
+  `{ses_…: {type: "busy" | "retry" | "idle"}}` and omits idle sessions;
+  `session.status` pushes the same union. Without it every row looks idle.
+- **v1.19.3 has no background shell jobs.** The bash tool takes no
+  `run_in_background`, `/doc` carries no job registry, and `POST
+  /experimental/session/{id}/background` only detaches already-running
+  *subagents*. PTYs (`/pty`) are terminals, not sessions. There is nothing to
+  model until a server exposes one.
 
 ### 12.5 Streaming
 
@@ -486,13 +496,18 @@ not `data`. Event types map to `ServerEvent`:
 | `message.part.delta` | folded into `PartUpserted` as a text delta |
 | `permission.asked` / `permission.replied` | `PermissionRequested` / `PermissionResolved` |
 | `session.idle` | `SessionIdle` |
+| `session.status` | `SessionStatusChanged(sessionID, status)` |
 | `session.error` | `SessionFailed` |
 
 Unmapped types are dropped rather than logged as errors — the stream is
 documented as lossy and carries a great deal we do not render.
 
-`session.idle` is the **only** thing that ends a turn. Every reconnect triggers a
-REST reconcile, per the standing invariant that the stream is never the truth.
+`session.idle` is the **only** thing that ends a turn, and `session.status` with
+`type: "idle"` is the matching status transition. Both are applied: a chat opened
+while it is already running has no local `SessionIdle` of its own to rely on, and
+a session the user is not looking at has no other way to show that it is busy.
+Every reconnect triggers a REST reconcile, per the standing invariant that the
+stream is never the truth.
 
 ### 12.6 Sending a prompt
 

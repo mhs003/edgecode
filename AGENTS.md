@@ -79,6 +79,10 @@ app/src/main/java/dev/edgecode/
 - **Streaming is a delta channel, never the truth.** The v1 server documents its
   event stream as lossy. Any new state that arrives by event must also be
   derivable from a REST fetch.
+- **A subagent is a branch, not a chat.** A `task` call creates an ordinary
+  session with a `parentId`. Keep those out of the session list: the chat that
+  spawned it reaches it from the call and from the header chip, and opens it
+  read-only.
 - **Do not add a markdown library.** The hand-rolled renderer exists because
   assistant text arrives a few characters at a time and must render mid-fence;
   and because code blocks need chrome (language, copy, collapse, horizontal
@@ -142,6 +146,9 @@ Current chat clients render one canvas with one fill. Match that.
   handles both; do not put SDK directories on `PATH`.
 - `material-icons-core` is not guaranteed to come with Material 3 — assume
   `Icons.Default.*` may not resolve and use `EdgeIcons`.
+- **A session payload carries no status.** `session.status` events and
+  `GET /session/status` are the only sources, and the REST map omits idle
+  sessions. Mapping neither leaves every row looking idle.
 
 ## Commits
 
@@ -153,7 +160,8 @@ batching unrelated work.
 `version.properties` holds `versionCode` and `versionName`. `app/build.gradle.kts`
 reads it; nothing else may hard-code a version.
 
-**Before every push:**
+**Every change gets a version bump. Do it in the same commit as the change —
+not at push time, not in a follow-up commit, and never "later".**
 
 1. Run `scripts/bump-version.sh [major|minor|patch|X.Y.Z]` — default `patch`. It
    increments `versionCode` by one and the name in step. Never edit the file by
@@ -163,15 +171,16 @@ reads it; nothing else may hard-code a version.
    `## [<new version>] - <YYYY-MM-DD>` section, leaving `Unreleased` empty. Those
    entries are published verbatim as the release notes, so write them for
    someone reading a release page, not for someone reading a diff.
-3. Commit the bump and the changelog alongside the work being shipped, so a
-   commit that changes behaviour and the version that ships it are the same
-   commit.
+3. Commit the bump and the changelog alongside the work, so a commit that
+   changes behaviour and the version that carries it are the same commit. A
+   commit that changes anything without a bump is incomplete; amend it before
+   moving on.
 
 `.github/workflows/release.yml` tests every push to `master`, then publishes
 only when no `vX.Y.Z` tag exists for the current `versionName`: it builds a
 minified `assembleRelease` APK, checks that it is signed, tags the commit and
-creates the release with the APK attached. Pushing without bumping therefore
-tests but releases nothing.
+creates the release with the APK attached. Because every change bumps the
+version, every push publishes.
 
 The workflow signs with `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and
 `KEY_PASSWORD` repository secrets. When they are absent it falls back to the

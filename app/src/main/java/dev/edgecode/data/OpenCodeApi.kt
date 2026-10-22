@@ -14,6 +14,7 @@ import dev.edgecode.core.model.ProviderInfo
 import dev.edgecode.core.model.ServerEvent
 import dev.edgecode.core.model.ServerInfo
 import dev.edgecode.core.model.SessionSummary
+import dev.edgecode.core.model.SessionStatus
 import dev.edgecode.core.model.SlashCommand
 import kotlinx.coroutines.flow.Flow
 
@@ -35,6 +36,14 @@ interface OpenCodeApi {
     suspend fun projects(): List<ProjectRef>
 
     suspend fun sessions(): List<SessionSummary>
+
+    /**
+     * Which sessions the server is currently working on, by id.
+     *
+     * A session's own payload carries no status, so this is the REST half of the
+     * status picture; `session.status` events are the live half.
+     */
+    suspend fun sessionStatuses(): Map<String, SessionStatus>
 
     suspend fun createSession(directory: String?, title: String?): SessionSummary
 
@@ -254,6 +263,9 @@ object ChatReducer {
             }
         }
         is ServerEvent.SessionRemoved -> current.filterNot { it.id == event.sessionId }
+        is ServerEvent.SessionStatusChanged -> current.map { session ->
+            if (session.id == event.sessionId) session.copy(status = event.status) else session
+        }
         else -> current
     }
 

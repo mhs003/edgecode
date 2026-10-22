@@ -551,4 +551,72 @@ class OpenCodeWireTest {
         )
         assertEquals(body, parseJson(body).encode())
     }
+
+    // A session payload has no status field at all. `session.status` is the only
+    // live signal that a session is working, and `GET /session/status` is the
+    // only way to see it without waiting for an event.
+
+    @Test
+    fun sessionStatusEventsReportWorkInProgress() {
+        val busy = OpenCodeWire.event(
+            json("""{"type":"session.status","properties":{"sessionID":"ses_1","status":{"type":"busy"}}}"""),
+        )
+        assertEquals(ServerEvent.SessionStatusChanged("ses_1", SessionStatus.Working), busy)
+
+        val idle = OpenCodeWire.event(
+            json("""{"type":"session.status","properties":{"sessionID":"ses_1","status":{"type":"idle"}}}"""),
+        )
+        assertEquals(ServerEvent.SessionStatusChanged("ses_1", SessionStatus.Idle), idle)
+    }
+
+    @Test
+    fun aRetryingSessionStillCountsAsWorking() {
+        val status = json("""{"type":"retry","attempt":2,"message":"rate limited","next":5}""")
+        assertEquals(SessionStatus.Working, OpenCodeWire.sessionStatus(status))
+    }
+
+    @Test
+    fun anUnknownStatusVariantDegradesToIdleRatherThanThrowing() {
+        assertEquals(SessionStatus.Idle, OpenCodeWire.sessionStatus(json("""{"type":"paused"}""")))
+        assertEquals(SessionStatus.Idle, OpenCodeWire.sessionStatus(null))
+    }
+
+    @Test
+    fun theStatusEndpointDecodesToSessionIds() {
+        val statuses = OpenCodeWire.statuses(
+            json("""{"ses_a":{"type":"busy"},"ses_b":{"type":"idle"}}"""),
+        )
+        assertEquals(SessionStatus.Working, statuses["ses_a"])
+        assertEquals(SessionStatus.Idle, statuses["ses_b"])
+    }
+
+    @Test
+    fun aTaskToolNamesTheChildSessionItSpawned() {
+        val part = OpenCodeWire.part(
+            json(
+                """
+                {"id":"prt_1","type":"tool","tool":"task","callID":"call_1",
+                 "state":{"status":"completed","title":"Extract details",
+                          "metadata":{"sessionId":"ses_child","parentSessionId":"ses_root"},
+                          "output":"done"}}
+                """.trimIndent(),
+            ),
+        ) as Part.Tool
+
+        assertEquals("ses_child", part.state.subagentId)
+    }
+
+    @Test
+    fun anOrdinaryToolCarriesNoSubagentLink() {
+        val part = OpenCodeWire.part(
+            json(
+                """
+                {"id":"prt_2","type":"tool","tool":"bash","callID":"call_2",
+                 "state":{"status":"completed","title":"ls","metadata":{"exit":0},"output":"a"}}
+                """.trimIndent(),
+            ),
+        ) as Part.Tool
+
+        assertNull(part.state.subagentId)
+    }
 }

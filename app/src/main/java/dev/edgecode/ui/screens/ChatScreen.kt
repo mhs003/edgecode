@@ -30,10 +30,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -53,16 +56,19 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.edgecode.core.design.EdgeIcons
 import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
+import dev.edgecode.core.design.components.Chip
 import dev.edgecode.core.design.components.CircleButton
 import dev.edgecode.core.design.components.EmptyState
 import dev.edgecode.core.design.components.ErrorNotice
 import dev.edgecode.core.design.components.InlineProgress
+import dev.edgecode.core.design.components.SheetHeader
 import dev.edgecode.core.design.components.bottomSystemInset
 import dev.edgecode.core.design.components.tappable
 import dev.edgecode.core.design.components.topSystemInset
@@ -71,6 +77,8 @@ import dev.edgecode.core.model.AttachmentKind
 import dev.edgecode.core.model.ChatMessage
 import dev.edgecode.core.model.ModelRef
 import dev.edgecode.core.model.Part
+import dev.edgecode.core.model.SessionStatus
+import dev.edgecode.core.model.SessionSummary
 import dev.edgecode.core.util.formatCost
 import dev.edgecode.core.util.formatTokens
 import dev.edgecode.core.util.queryFileMetadata
@@ -119,6 +127,7 @@ private suspend fun LazyListState.scrollToEnd(index: Int) {
 fun ChatScreen(
     sessionId: String,
     viewModel: AppViewModel,
+    readOnly: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -130,6 +139,7 @@ fun ChatScreen(
     val chatFlow = remember(sessionId) { viewModel.chat(sessionId) }
     val state by chatFlow.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
+    val allSubagents by viewModel.subagents.collectAsState()
     val catalog by viewModel.catalog.collectAsState()
     val permissions by viewModel.permissions.collectAsState()
     val settings by viewModel.settings_.collectAsState()
@@ -145,6 +155,7 @@ fun ChatScreen(
     var showModels by remember { mutableStateOf(false) }
     var showAgents by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
+    var showSubagents by remember { mutableStateOf(false) }
 
     // Measured, not assumed: the composer grows with the prompt, and the
     // transcript has to reserve exactly as much room as it currently occupies
@@ -152,7 +163,16 @@ fun ChatScreen(
     var composerHeight by remember { mutableStateOf(0) }
     val composerHeightDp = with(LocalDensity.current) { composerHeight.toDp() }
 
-    val session = remember(sessions, sessionId) { sessions.firstOrNull { it.id == sessionId } }
+    // A subagent is a branch of this conversation rather than a chat of its
+    // own, so it never appears in the session list and is read from here.
+    val subagents = remember(allSubagents, sessionId) {
+        allSubagents.filter { it.parentId == sessionId }
+    }
+    val activeSubagents = subagents.count { it.status == SessionStatus.Working }
+
+    val session = remember(sessions, subagents, sessionId) {
+        sessions.firstOrNull { it.id == sessionId } ?: subagents.firstOrNull { it.id == sessionId }
+    }
     val pending = remember(permissions, sessionId) {
         permissions.filter { it.sessionId == sessionId }
     }
@@ -184,7 +204,10 @@ fun ChatScreen(
 
     val streaming = state.isStreaming
     val messages = state.messages
-    val working = state.isWorking
+    // The local flag covers the gap between sending and the first event; the
+    // session status covers everything else, including a chat opened while it
+    // is already running and a subagent opened read-only.
+    val working = state.isWorking || session?.status == SessionStatus.Working
     // While a reply streams, its message knows the model that actually served
     // it. Before the first token there is no such message, so fall back to the
     // chat's own model — which sending has just committed.
@@ -285,8 +308,12 @@ fun ChatScreen(
                 ) {
                     EmptyState(
                         title = "Nothing here yet",
-                        message = "Ask for a change, or open a command with /.",
-                        icon = EdgeIcons.Terminal,
+                        message = if (readOnly) {
+                            "This subagent has not produced any messages."
+                        } else {
+                            "Ask for a change, or open a command with /."
+                        },
+                        icon = if (readOnly) EdgeIcons.Branch else EdgeIcons.Terminal,
                     )
                 }
 
@@ -317,6 +344,7 @@ fun ChatScreen(
                             modelLabel = (message as? ChatMessage.Assistant)
                                 ?.model
                                 ?.let { catalog.model(it)?.name },
+                            onOpenSubagent = { childId -> viewModel.openSubagent(childId) },
                         )
                     }
 
@@ -375,36 +403,51 @@ fun ChatScreen(
 
                 Spacer(Modifier.weight(1f))
 
-                if (contextPercent > 0.8f) {
-                    ContextChip(percent = contextPercent)
-                    Spacer(Modifier.width(Space.sm))
-                }
+                if (readOnly) {
+                    Chip(text = "Subagent", icon = EdgeIcons.Branch)
+                } else {
+                    // Only while one is running: settled ones are reachable from
+                    // the call that spawned them, and a permanent count would be
+                    // noise in a header that is otherwise source-of-truth free.
+                    if (activeSubagents > 0) {
+                        SubagentChip(
+                            count = activeSubagents,
+                            onClick = { showSubagents = true },
+                        )
+                        Spacer(Modifier.width(Space.sm))
+                    }
 
-                CircleButton(
-                    icon = EdgeIcons.Plus,
-                    contentDescription = "New session",
-                    onClick = { viewModel.back() },
-                )
-                Spacer(Modifier.width(Space.sm))
-                Box {
+                    if (contextPercent > 0.8f) {
+                        ContextChip(percent = contextPercent)
+                        Spacer(Modifier.width(Space.sm))
+                    }
+
                     CircleButton(
-                        icon = EdgeIcons.More,
-                        contentDescription = "Session menu",
-                        onClick = { menuOpen = true },
+                        icon = EdgeIcons.Plus,
+                        contentDescription = "New session",
+                        onClick = { viewModel.back() },
                     )
-                    SessionMenu(
-                        expanded = menuOpen,
-                        onDismiss = { menuOpen = false },
-                        directory = session?.directory,
-                        tokens = session?.tokens?.total ?: 0,
-                        cost = session?.cost ?: 0.0,
-                        additions = session?.additions ?: 0,
-                        deletions = session?.deletions ?: 0,
-                        contextPercent = contextPercent,
-                        onNewSession = { menuOpen = false; viewModel.back() },
-                        onSettings = { menuOpen = false; viewModel.openSettings() },
-                        onDelete = { menuOpen = false; viewModel.deleteSession(sessionId) },
-                    )
+                    Spacer(Modifier.width(Space.sm))
+                    Box {
+                        CircleButton(
+                            icon = EdgeIcons.More,
+                            contentDescription = "Session menu",
+                            onClick = { menuOpen = true },
+                        )
+                        SessionMenu(
+                            expanded = menuOpen,
+                            onDismiss = { menuOpen = false },
+                            directory = session?.directory,
+                            tokens = session?.tokens?.total ?: 0,
+                            cost = session?.cost ?: 0.0,
+                            additions = session?.additions ?: 0,
+                            deletions = session?.deletions ?: 0,
+                            contextPercent = contextPercent,
+                            onNewSession = { menuOpen = false; viewModel.back() },
+                            onSettings = { menuOpen = false; viewModel.openSettings() },
+                            onDelete = { menuOpen = false; viewModel.deleteSession(sessionId) },
+                        )
+                    }
                 }
             }
 
@@ -420,20 +463,22 @@ fun ChatScreen(
         // Fade behind the composer, mirrored: nothing where the transcript is,
         // solid canvas at the window edge. The pill itself keeps its own fill
         // and stays fully transparent around it.
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(composerHeightDp + Space.lg)
-                .background(
-                    Brush.verticalGradient(
-                        0.00f to Color.Transparent,
-                        0.22f to scheme.background.copy(alpha = 0.45f),
-                        0.45f to scheme.background.copy(alpha = 0.88f),
-                        1.00f to scheme.background,
+        if (!readOnly) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(composerHeightDp + Space.lg)
+                    .background(
+                        Brush.verticalGradient(
+                            0.00f to Color.Transparent,
+                            0.22f to scheme.background.copy(alpha = 0.45f),
+                            0.45f to scheme.background.copy(alpha = 0.88f),
+                            1.00f to scheme.background,
+                        ),
                     ),
-                ),
-        )
+            )
+        }
 
         // The composer floats over the transcript. It reserves its measured
         // height in the list's bottom padding, so the last turn can always be
@@ -455,42 +500,46 @@ fun ChatScreen(
             }
         }
 
-        Composer(
-            value = draft,
-            onValueChange = { draft = it },
-            attachments = attachments,
-            onRemoveAttachment = { id -> attachments = attachments.filterNot { it.id == id } },
-            onPickAttachment = { picker.launch("*/*") },
-            onSend = {
-                if (draft.isNotBlank() || attachments.isNotEmpty()) {
-                    viewModel.send(sessionId, draft, attachments)
+        // A subagent is driven by the agent that spawned it; a prompt typed here
+        // would sit outside that conversation, so it has no composer at all.
+        if (!readOnly) {
+            Composer(
+                value = draft,
+                onValueChange = { draft = it },
+                attachments = attachments,
+                onRemoveAttachment = { id -> attachments = attachments.filterNot { it.id == id } },
+                onPickAttachment = { picker.launch("*/*") },
+                onSend = {
+                    if (draft.isNotBlank() || attachments.isNotEmpty()) {
+                        viewModel.send(sessionId, draft, attachments)
+                        draft = ""
+                        attachments = emptyList()
+                    }
+                },
+                onStop = { viewModel.abort(sessionId) },
+                streaming = streaming,
+                modelLabel = viewModel.currentModelLabel(sessionId),
+                agentLabel = viewModel.agentInfo(selectedAgent)?.name ?: selectedAgent,
+                onModelClick = { showModels = true },
+                onAgentClick = { showAgents = true },
+                commands = catalog.commands,
+                onCommandSelected = { command ->
                     draft = ""
-                    attachments = emptyList()
-                }
-            },
-            onStop = { viewModel.abort(sessionId) },
-            streaming = streaming,
-            modelLabel = viewModel.currentModelLabel(sessionId),
-            agentLabel = viewModel.agentInfo(selectedAgent)?.name ?: selectedAgent,
-            onModelClick = { showModels = true },
-            onAgentClick = { showAgents = true },
-            commands = catalog.commands,
-            onCommandSelected = { command ->
-                draft = ""
-                // Commands the client implements open a surface; the rest are
-                // the server's to execute.
-                when (command.name) {
-                    "models" -> showModels = true
-                    "agents" -> showAgents = true
-                    "help" -> Unit
-                    else -> viewModel.runCommand(sessionId, command.name, "")
-                }
-            },
-            sendOnEnter = settings.sendOnEnter,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .onSizeChanged { composerHeight = it.height },
-        )
+                    // Commands the client implements open a surface; the rest are
+                    // the server's to execute.
+                    when (command.name) {
+                        "models" -> showModels = true
+                        "agents" -> showAgents = true
+                        "help" -> Unit
+                        else -> viewModel.runCommand(sessionId, command.name, "")
+                    }
+                },
+                sendOnEnter = settings.sendOnEnter,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .onSizeChanged { composerHeight = it.height },
+            )
+        }
     }
 
     if (showModels) {
@@ -517,6 +566,110 @@ fun ChatScreen(
             onDismiss = { showAgents = false },
         )
     }
+
+    if (showSubagents) {
+        SubagentSheet(
+            subagents = subagents,
+            onOpen = { id ->
+                showSubagents = false
+                viewModel.openSubagent(id)
+            },
+            onDismiss = { showSubagents = false },
+        )
+    }
+}
+
+/** The header affordance for work running beside this chat. */
+@Composable
+private fun SubagentChip(count: Int, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .height(Size.control)
+            .tappable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Chip(
+            text = if (count == 1) "1 subagent" else "$count subagents",
+            icon = EdgeIcons.Branch,
+            accent = MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SubagentSheet(
+    subagents: List<SessionSummary>,
+    onOpen: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val edge = LocalEdgeColors.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = scheme.surface,
+        dragHandle = null,
+    ) {
+        Column(modifier = Modifier.padding(bottom = Space.xl)) {
+            SheetHeader(
+                title = "Subagents",
+                subtitle = "Branches of this conversation",
+                onClose = onDismiss,
+            )
+            // Running first: those are the ones worth looking at now.
+            subagents.sortedByDescending { it.status == SessionStatus.Working }
+                .forEach { subagent ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .tappable { onOpen(subagent.id) }
+                            .padding(horizontal = Space.gutter, vertical = Space.md),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = subagent.title,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = scheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Spacer(Modifier.height(Space.xs))
+                            Text(
+                                text = subagentStatusLine(subagent),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (subagent.status == SessionStatus.Working) {
+                                    scheme.primary
+                                } else {
+                                    edge.faint
+                                },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Icon(
+                            imageVector = EdgeIcons.ChevronRight,
+                            contentDescription = null,
+                            tint = edge.faint,
+                            modifier = Modifier.size(Size.iconSm),
+                        )
+                    }
+                }
+        }
+    }
+}
+
+private fun subagentStatusLine(subagent: SessionSummary): String {
+    val status = when (subagent.status) {
+        SessionStatus.Working -> "Working"
+        SessionStatus.Error -> "Failed"
+        SessionStatus.Idle -> "Finished"
+    }
+    return listOfNotNull(status, subagent.modelLabel).joinToString(" · ")
 }
 
 /**
