@@ -250,6 +250,11 @@ through `runCommand`.
 A new chat inherits the most recent model. Picking a model only stages it;
 sending commits it to the chat and moves it to the front of the recent list.
 
+The model list comes from `GET /config/providers`, which returns only the
+configured providers and their models. `GET /provider` is the server's full
+registry — megabytes and mostly unconfigured providers — so it must not sit on
+the connect path. The configured response is still parsed off the main thread.
+
 ### 4.4 Dependencies
 
 No JSON library, no HTTP library, no DI framework, no DataStore, no navigation
@@ -326,7 +331,7 @@ pushed over Sessions or Chat. Back from Chat returns without losing stream state
 | Tool calling in chats | `Part.Tool` → one-line row with status, expandable input/output |
 | Markdown, both directions | Hand-rolled renderer; user text rendered too |
 | Slash commands | `GET /command`; `/models`, `/agents` are client surfaces, the rest post to `/session/{id}/command` |
-| Model selecting/changing | `GET /provider`; per-chat `ModelSelection`; picker fuzzy-searches connected providers |
+| Model selecting/changing | `GET /config/providers` (the configured subset, not the megabyte registry); per-chat `ModelSelection`; picker fuzzy-searches connected providers |
 | Agent selecting | `GET /agent`; picker in the composer footer |
 | Subagents | `task` metadata `sessionId` links the child; header chip lists active ones; opened read-only |
 | Image/document sending | File picker → `Attachment` → `FilePartInput`; base64 conversion is still an open item (§10) |
@@ -430,6 +435,11 @@ Read from the live server. The parts that are easy to get wrong:
   `time.completed`. `createdAt`/`updatedAt` on the model are millis.
 - **Tokens** live at `tokens.input|output|reasoning|cache.read|cache.write` and
   map straight onto `TokenUsage`.
+- **Provider registries come in two shapes.** `GET /provider` is
+  `{all, default, connected}` and is the full, multi-megabyte registry;
+  `GET /config/providers` is `{providers, default}` and is the configured subset
+  the picker can actually use. Read the latter on connect, and treat every
+  provider it returns as connected. Its payload contains provider API keys.
 - **Model refs** appear in two shapes: `{id, providerID}` on a session and
   `{providerID, modelID}` on a message. Both map to `ModelRef(providerId,
   modelId, variant)`. Getting this backwards silently breaks the model chip.
@@ -594,7 +604,7 @@ All items are complete:
 | Base64 attachments | Downscale before encoding; hard size cap — not yet implemented (§10) |
 | Cleartext LAN servers | `network_security_config` permits user-entered hosts |
 | Password at rest | Never persisted; memory-only for the life of the process |
-| Model registry size | The picker offers only connected providers; models are indexed once |
+| Model registry size | Connect reads `/config/providers` (configured subset, ~160KB) rather than the multi-megabyte `/provider`; parsed off the main thread and indexed once |
 
 ---
 

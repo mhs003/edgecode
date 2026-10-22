@@ -193,6 +193,7 @@ The replacement keeps the useful half of that property explicitly:
 | 21 | A question is a pinned card plus a sheet | A blocking prompt must not be scrollable-past, but a multi-question form is too tall to live inline. The compact card stays visible; the sheet holds the form. Rejected: an auto-opening modal, which interrupts typing; an inline form, which pushes the transcript off screen |
 | 22 | The answered exchange is rendered from the tool part | `state.input.questions` and `state.metadata.answers` are the server's durable record, so the transcript shows the prompts and chosen labels after the call settles and across restarts. Rejected: keeping only the transient `question.*` events, which are lost on reconnect |
 | 23 | Tool input can wrap on demand | A long command or JSON payload is easier to read wrapped than horizontally scrolled. The input block gets a wrap toggle beside copy; fenced code keeps horizontal scroll |
+| 24 | The catalogue reads `/config/providers`, not `/provider` | The full registry is measured in megabytes and lists every provider the server knows, most of them unconfigured. The configured subset is what the picker offers, and it is parsed off the main thread so the session list is not held behind it |
 
 ## Invariants
 
@@ -264,6 +265,10 @@ only against a reading of the spec.
   the live signal and `GET /session/status` is the REST half; the map omits idle
   sessions. Reading only the session payload leaves every row looking idle, which
   is what made an in-progress session indistinguishable from a dormant one.
+- **Read `/config/providers`, not `/provider`.** The full document is the
+  server's whole registry (megabytes, most providers unconfigured); the
+  configured subset is the few the picker can offer. Parse it off the main
+  thread, and never log the body: it carries provider API keys.
 - **A question is a blocking request, not a permission.** `question.asked`
   carries an array of `QuestionInfo`; answers are arrays of selected labels in
   the order the questions were asked, and `custom` contributes a free-text

@@ -316,6 +316,25 @@ class OpenCodeWireTest {
     }
 
     @Test
+    fun theConfiguredProvidersShapeIsRead() {
+        val payload = json(
+            """
+            {"providers":[{"id":"p","name":"P","models":{
+              "m":{"id":"m","capabilities":{},"limit":{},"cost":{}}}}],
+             "default":{"p":"m"}}
+            """.trimIndent(),
+        )
+
+        val providers = OpenCodeWire.providers(payload)
+        val models = OpenCodeWire.models(payload, mapOf("p" to "m"))
+
+        assertEquals(listOf("p"), providers.map { it.id })
+        assertTrue(providers.single().connected)
+        assertEquals("m", models.single().id)
+        assertTrue(models.single().isDefault)
+    }
+
+    @Test
     fun modelsCarryCostLimitsCapabilitiesAndVariants() {
         val models = OpenCodeWire.models(fixture("providers.json"))
         assertTrue(models.isNotEmpty())

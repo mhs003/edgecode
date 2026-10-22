@@ -167,6 +167,11 @@ Current chat clients render one canvas with one fill. Match that.
 - **Notifications cover a backgrounded process, not a killed one.** The SSE
   stream lives as long as the ViewModel; a killed process receives nothing, so
   the notification path is scoped to the backgrounded window.
+- **`GET /provider` is the whole registry; `GET /config/providers` is the
+  configured subset.** The former is megabytes and mostly providers the user
+  cannot pick; the latter is the handful the picker offers and what connect
+  reads. Its payload contains provider API keys, so never log it or capture it
+  as a fixture.
 
 ## Commits
 

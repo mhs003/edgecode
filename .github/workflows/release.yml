@@ -114,7 +114,12 @@ jobs:
           else
             echo "::warning::No KEYSTORE_BASE64 secret; the release APK is signed with the debug key."
           fi
-          ./gradlew --no-daemon assembleRelease
+          # R8 needs more than the 512 MiB default heap; the single-use daemon
+          # dies mid-minify with "JVM garbage collector is thrashing". Keep the
+          # larger heap in CI only: this project is also built on a phone.
+          ./gradlew --no-daemon \
+            -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=1g" \
+            assembleRelease
 
       # Catches the failure that matters: an unsigned or debug-only APK cannot
       # be installed over the previous release.

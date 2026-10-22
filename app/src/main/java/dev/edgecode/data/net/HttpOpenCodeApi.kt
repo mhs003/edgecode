@@ -24,12 +24,15 @@ import dev.edgecode.core.util.obj
 import dev.edgecode.core.util.parseJson
 import dev.edgecode.core.util.string
 import dev.edgecode.core.util.stringOr
+import dev.edgecode.data.ProviderRegistry
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
 
 /**
  * An [dev.edgecode.data.OpenCodeApi] backed by a real OpenCode v1 server.
@@ -165,16 +168,27 @@ class HttpOpenCodeApi(
 
     override suspend fun agents(): List<AgentInfo> = OpenCodeWire.agents(get("/agent"))
 
-    override suspend fun providers(): List<ProviderInfo> = OpenCodeWire.providers(get("/provider"))
+    override suspend fun providers(): List<ProviderInfo> = providerRegistry().providers
 
-    override suspend fun models(): List<ModelInfo> {
-        val json = get("/provider")
+    override suspend fun models(): List<ModelInfo> = providerRegistry().models
+
+    /**
+     * `/config/providers` is the configured subset: four providers and ~160KB
+     * on the development server, against 7MB for `/provider`'s full registry.
+     * Parsing happens off the main thread because even the small document is
+     * large enough to be felt while the session list is being drawn.
+     */
+    override suspend fun providerRegistry(): ProviderRegistry = withContext(Dispatchers.Default) {
+        val json = parseJson(transport.request("GET", "/config/providers").body)
         val defaults = json.obj("default")?.asObject.orEmpty()
             .mapNotNull { (provider, value) ->
                 value.asString?.let { provider to it }
             }
             .toMap()
-        return OpenCodeWire.models(json, defaults)
+        ProviderRegistry(
+            models = OpenCodeWire.models(json, defaults),
+            providers = OpenCodeWire.providers(json),
+        )
     }
 
     /**

@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * The connect path used to wait on its catalogue fetches one after another, so
- * five independent round-trips were added together before the session list could
+ * independent round-trips were added together before the session list could
  * appear. These tests pin the two properties that fix depends on.
  */
 class AppRepositoryTest {
@@ -125,6 +125,7 @@ class AppRepositoryTest {
         override suspend fun agents(): List<AgentInfo> = call(emptyList())
         override suspend fun providers(): List<ProviderInfo> = call(emptyList())
         override suspend fun models(): List<ModelInfo> = call(emptyList())
+        override suspend fun providerRegistry(): ProviderRegistry = call(ProviderRegistry())
 
         override fun events(): Flow<ServerEvent> = emptyFlow()
 
@@ -142,16 +143,16 @@ class AppRepositoryTest {
         val elapsedMs = (System.nanoTime() - started) / 1_000_000
 
         assertNotNull(built)
-        // Five 100ms catalogue fetches. Overlapped, connect costs
+        // Four 100ms catalogue fetches. Overlapped, connect costs
         // health(100) + catalogue(100) + sessions(100) ≈ 300ms; serialised it
-        // would cost 100 + 500 + 100 = 700ms.
+        // would cost 100 + 400 + 100 = 600ms.
         assertEquals(
             "catalogue fetches should all be in flight at once",
-            5,
+            4,
             api.peakConcurrency,
         )
         assertTrue(
-            "connect took ${elapsedMs}ms; serialised catalogue fetches would take ~700ms",
+            "connect took ${elapsedMs}ms; serialised catalogue fetches would take ~600ms",
             elapsedMs < 500,
         )
     }

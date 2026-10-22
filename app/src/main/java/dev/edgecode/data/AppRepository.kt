@@ -291,21 +291,27 @@ class AppRepository(
 
     /**
      * The catalogue fetches are independent, so they run concurrently. Doing
-     * them one after another summed five round-trips into the time the user
+     * them one after another summed every round-trip into the time the user
      * waited before the session list appeared.
+     *
+     * Models and providers come from one registry read: `/config/providers` is
+     * the configured subset, so there is no second multi-megabyte document to
+     * fetch and parse just to learn which providers are connected.
      */
     private suspend fun loadCatalog(client: OpenCodeApi) = coroutineScope {
-        val models = async { runCatching { client.models() }.getOrDefault(emptyList()) }
+        val registry = async {
+            runCatching { client.providerRegistry() }.getOrDefault(ProviderRegistry())
+        }
         val agents = async { runCatching { client.agents() }.getOrDefault(emptyList()) }
         val commands = async { runCatching { client.commands() }.getOrDefault(emptyList()) }
-        val providers = async { runCatching { client.providers() }.getOrDefault(emptyList()) }
         val projects = async { runCatching { client.projects() }.getOrDefault(emptyList()) }
 
+        val catalog = registry.await()
         _catalog.value = Catalog(
-            models = models.await(),
+            models = catalog.models,
             agents = agents.await(),
             commands = commands.await(),
-            providers = providers.await(),
+            providers = catalog.providers,
             projects = projects.await(),
         )
     }

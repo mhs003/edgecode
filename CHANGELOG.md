@@ -10,6 +10,19 @@ release workflow uses the section below as the release notes.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-22
+
+### Fixed
+
+- Connecting no longer waits on the server's full multi-megabyte provider
+  registry. Connect reads `/config/providers` — the configured subset the model
+  picker can actually use — once, off the main thread, so the session list
+  appears as soon as the health check and session fetch finish.
+- Tapping a saved connection while another attempt is still connecting is
+  ignored instead of cancelling it and reporting a failure on the tapped row.
+- Release builds get a larger Gradle heap, so R8 no longer dies with JVM
+  garbage-collector thrashing on the CI runner.
+
 ## [1.1.0] - 2026-10-22
 
 ### Added

@@ -20,6 +20,19 @@ import dev.edgecode.core.model.SlashCommand
 import kotlinx.coroutines.flow.Flow
 
 /**
+ * The models and providers a server is configured to use.
+ *
+ * Kept as one value because they come from one registry read. The full
+ * `/provider` document also lists every provider the server knows about,
+ * connected or not, and is measured in megabytes; `/config/providers` is the
+ * configured subset the picker actually needs.
+ */
+data class ProviderRegistry(
+    val models: List<ModelInfo> = emptyList(),
+    val providers: List<ProviderInfo> = emptyList(),
+)
+
+/**
  * The one seam between the app and an OpenCode server.
  *
  * Everything above this interface speaks [dev.edgecode.core.model] types, so a
@@ -96,6 +109,15 @@ interface OpenCodeApi {
     suspend fun providers(): List<ProviderInfo>
 
     suspend fun models(): List<ModelInfo>
+
+    /**
+     * Reads the configured providers and their models in one request.
+     *
+     * The default implementation composes [models] and [providers]; the HTTP
+     * client overrides it so a real server is read once.
+     */
+    suspend fun providerRegistry(): ProviderRegistry =
+        ProviderRegistry(models = models(), providers = providers())
 
     /**
      * Event stream. Always collect this together with a REST reconcile: the v1

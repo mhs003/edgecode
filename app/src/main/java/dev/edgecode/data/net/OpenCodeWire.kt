@@ -489,13 +489,18 @@ object OpenCodeWire {
         source = json.stringOr("source", "server"),
     )
 
+    private fun providersArray(json: JsonValue): List<JsonValue> =
+        json.arr("all").ifEmpty { json.arr("providers") }
+
     /**
-     * Providers arrive as `{all: [...], default: {...}, connected: [...]}` with
-     * `models` a map keyed by model id, so the key is redundant with `id`.
+     * `GET /provider` returns `{all: [...], default: {...}, connected: [...]}`;
+     * `GET /config/providers` returns `{providers: [...], default: {...}}` and
+     * only the configured subset. `models` is a map keyed by model id, so the
+     * key is redundant with `id`.
      */
     fun providers(json: JsonValue): List<ProviderInfo> {
         val connected = json.strings("connected").toSet()
-        return json.arr("all").mapNotNull { provider ->
+        return providersArray(json).mapNotNull { provider ->
             val id = provider.string("id") ?: return@mapNotNull null
             ProviderInfo(
                 id = id,
@@ -507,7 +512,7 @@ object OpenCodeWire {
 
     fun models(json: JsonValue, default: Map<String, String> = emptyMap()): List<ModelInfo> {
         val out = mutableListOf<ModelInfo>()
-        for (provider in json.arr("all")) {
+        for (provider in providersArray(json)) {
             val providerId = provider.string("id") ?: continue
             val providerName = provider.stringOr("name", providerId)
             val models = provider.obj("models")?.asObject ?: continue

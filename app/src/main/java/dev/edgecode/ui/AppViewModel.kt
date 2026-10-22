@@ -115,6 +115,10 @@ class AppViewModel(
     // --- Connection --------------------------------------------------------
 
     fun connect(url: String, username: String?, password: String?, remember: Boolean) {
+        // A second tap while the first attempt is still connecting used to
+        // disconnect the attempt in flight, which surfaced as a failure on the
+        // row that was tapped. There is nothing useful to do until it settles.
+        if (connectionBusy()) return
         val normalized = normalizeUrl(url)
         val user = username?.takeIf { it.isNotBlank() }
         val secret = password?.takeIf { it.isNotBlank() }
@@ -147,6 +151,7 @@ class AppViewModel(
      * cached for this URL (if the user typed one earlier this session) is reused.
      */
     fun connectSaved(connection: SavedConnection, password: String?) {
+        if (connectionBusy()) return
         val url = connection.url
         val secret = password?.takeIf { it.isNotBlank() } ?: passwords[url]
         if (secret != null) passwords[url] = secret
@@ -199,6 +204,7 @@ class AppViewModel(
     }
 
     fun connectDemo(remember: Boolean = false) {
+        if (connectionBusy()) return
         scope.launch {
             repository.connectDemo()
             if (repository.connection.value.isConnected) {
@@ -208,6 +214,9 @@ class AppViewModel(
             }
         }
     }
+
+    private fun connectionBusy(): Boolean =
+        repository.connection.value.let { it is ConnectionState.Connecting || it.isConnected }
 
     fun disconnect() {
         repository.disconnect()
