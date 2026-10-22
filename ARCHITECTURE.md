@@ -61,6 +61,7 @@ swapped without touching a single screen.
 | `data/ConnectionsStore` | Saved servers, with the list rules as a pure `Connections` object |
 | `data/net` | The real client: `Transport`, `HttpOpenCodeApi`, `OpenCodeWire`, `Sse` |
 | `data/demo` | `DemoOpenCodeApi` and fixture content |
+| `Notifications` | Background alerts for questions and permissions, with a session deep link |
 | `ui/AppViewModel` | Navigation stack, selection state, settings writes |
 | `ui/screens`, `ui/chat` | The four destinations and the transcript components |
 
@@ -104,6 +105,21 @@ sheet renders against the session. `respondPermission` posts the decision to
 the same round trip by suspending on a `CompletableDeferred` until the reply
 arrives, so the flow is exercised without a server.
 
+**Ask.** A `question.asked` event becomes a `QuestionRequest` and a pinned
+`QuestionCard`; answering opens `QuestionSheet`, which collects one array of
+labels per question and posts `/question/{id}/reply` (or rejects via
+`/question/{id}/reject`). The pending list is also fetched from `GET /question`
+on connect, on open and on `server.connected`, so a missed event cannot strand
+the agent. Once the call settles, the transcript renders the exchange from the
+`question` tool part — `state.input.questions` and `state.metadata.answers` — so
+it survives a restart and is not dependent on the transient event.
+
+**Notify.** While the app is visible, a pending question or permission is only
+a card. `MainActivity` reports foreground state, and `Notifications` posts a
+high-importance alert when one arrives while the app is not visible; the
+notification carries the session id and a tap opens that session. A killed
+process has no SSE stream, so the path is scoped to the backgrounded window.
+
 ## State model
 
 - `AppRepository` holds `StateFlow`s for connection, sessions, permissions and
@@ -112,10 +128,13 @@ arrives, so the flow is exercised without a server.
   session carrying a `parentId`, so `sessions` (roots) and `subagents` (children)
   are split in the repository rather than filtered in a screen: a chat's children
   must stay reachable precisely because they are not chats of their own.
-- Message, session and permission lists are mutated by `ChatReducer`, a set of
-  pure functions `(State, ServerEvent) -> State`. Transport-level state —
-  loading, errors, the working flag, optimistic sends and permission removal —
-  is written directly by `AppRepository`.
+- Message, session, permission and pending-question lists are mutated by
+  `ChatReducer`, a set of pure functions `(State, ServerEvent) -> State`.
+  Transport-level state — loading, errors, the working flag, optimistic sends
+  and permission removal — is written directly by `AppRepository`.
+- Pending questions are held as `List<QuestionRequest>` alongside permissions.
+  Answered questions are not retained there: the durable record is the
+  `question` tool part, which carries the prompts and the chosen labels itself.
 - `ChatReducer` has no Android or coroutine types. The bulk of the app's real
   complexity — merging streaming parts, reconciling a stale frame — is therefore
   testable on the JVM without a device.
@@ -171,12 +190,15 @@ The replacement keeps the useful half of that property explicitly:
 | 18 | A chat's model is committed on send, not on pick | `ModelSelection` keeps pending, committed and recent layers. Picking stages a model; sending makes it the chat's model and moves it to the front of the recent list. Rejected: one global selection, which leaked a model picked in one chat into every other |
 | 19 | One working indicator spans the whole turn | Shown from send until the server reports the session idle, and labelled with the model serving the reply. Rejected: a spinner only while text streams — it left the longest silent phase unexplained |
 | 20 | Session status is merged from REST and events | A session payload carries no status, so `session.status` and `GET /session/status` are applied on top; `time.compacting` is the only in-payload hint |
+| 21 | A question is a pinned card plus a sheet | A blocking prompt must not be scrollable-past, but a multi-question form is too tall to live inline. The compact card stays visible; the sheet holds the form. Rejected: an auto-opening modal, which interrupts typing; an inline form, which pushes the transcript off screen |
+| 22 | The answered exchange is rendered from the tool part | `state.input.questions` and `state.metadata.answers` are the server's durable record, so the transcript shows the prompts and chosen labels after the call settles and across restarts. Rejected: keeping only the transient `question.*` events, which are lost on reconnect |
+| 23 | Tool input can wrap on demand | A long command or JSON payload is easier to read wrapped than horizontally scrolled. The input block gets a wrap toggle beside copy; fenced code keeps horizontal scroll |
 
 ## Invariants
 
 1. Nothing above `data/` imports a wire-format type.
 2. `ChatReducer`, `Markdown`, `SyntaxHighlighter`, `Diff`, `Format`, `Fuzzy`,
-   `Json`, `Sse` and `OpenCodeWire` stay free of Android types.
+   `Json`, `Sse`, `OpenCodeWire` and `QuestionDraft` stay free of Android types.
 3. Colour comes from the theme; geometry comes from `Tokens`. No literals in
    feature code.
 4. Every part update reuses its part id, so identity is stable while streaming.
@@ -242,6 +264,15 @@ only against a reading of the spec.
   the live signal and `GET /session/status` is the REST half; the map omits idle
   sessions. Reading only the session payload leaves every row looking idle, which
   is what made an in-progress session indistinguishable from a dormant one.
+- **A question is a blocking request, not a permission.** `question.asked`
+  carries an array of `QuestionInfo`; answers are arrays of selected labels in
+  the order the questions were asked, and `custom` contributes a free-text
+  label. `GET /question` lists pending requests, and reply/reject are
+  `POST /question/{id}/reply` and `POST /question/{id}/reject`.
+- **The question tool part is the durable record.** Its
+  `state.input.questions` holds the prompts and `state.metadata.answers` holds
+  the chosen labels; `state.output` is only a prose summary. The event's
+  `tool.messageID`/`tool.callID` link the request to that part.
 - A `task` tool part names its child session at `state.metadata.sessionId`, with
   `parentSessionId` beside it. The output repeats the id inside a `<task id=…>`
   string, which is the fallback if metadata is ever dropped.

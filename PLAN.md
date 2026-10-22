@@ -21,7 +21,11 @@ remote control for it:
 - **Sessions** — list with live status, search, resume, create in a directory,
   rename, delete.
 - **Chat** — streaming replies with markdown in both directions, reasoning,
-  tool-call rendering, permissions, diffs, slash commands.
+  tool-call rendering, permissions, questions, diffs, slash commands.
+- **Questions** — answer single- or multi-select prompts and custom text; the
+  exchange stays in the transcript as the question tool's output.
+- **Background alerts** — get notified when the agent is blocked while the app
+  is not visible.
 - **Model & agent control** — pick a model per chat, switch agents.
 - **Subagents** — inspect sessions spawned by a `task` call, read-only.
 - **Attachments** — pick files into a prompt.
@@ -44,6 +48,8 @@ sophistication, adaptive density, subtle surfaces, no card-per-section.
 | Sessions (list, status, search, create, rename, delete) | Implemented |
 | Chat transcript, streaming, markdown, code, diffs | Implemented |
 | Tools, permissions | Implemented |
+| Questions (single/multi/custom, reject) | Implemented |
+| Background notifications | Implemented |
 | Models, agents, slash commands | Implemented |
 | Subagents | Implemented |
 | Attachments | Picker and composer implemented; base64 encoding is not (see §10) |
@@ -297,9 +303,10 @@ Components live in `core/design/components`: `MarkdownText`, `CodeBlock`,
    model metadata, create in a reported project directory, rename, delete,
    refresh, settings, disconnect.
 3. **Chat** — edge-to-edge transcript, streaming deltas and caret, reasoning,
-   one-line expandable tool calls, diffs, notes, permission sheet, slash
-   commands, model and agent pickers, session statistics and context pressure
-   in the header overflow, subagent links and sheet, abort.
+   one-line expandable tool calls, diffs, notes, permission sheet, question card
+   and sheet, answered questions as the question tool's output, slash commands,
+   model and agent pickers, session statistics and context pressure in the
+   header overflow, subagent links and sheet, abort.
 4. **Settings** — theme (dark/light/system), reasoning, expanded tools,
    send-on-enter, server state, about.
 
@@ -324,6 +331,8 @@ pushed over Sessions or Chat. Back from Chat returns without losing stream state
 | Subagents | `task` metadata `sessionId` links the child; header chip lists active ones; opened read-only |
 | Image/document sending | File picker → `Attachment` → `FilePartInput`; base64 conversion is still an open item (§10) |
 | Permissions | `permission.asked` → sheet → `POST /permission/{id}/reply` |
+| Questions | `GET /question`, `question.*` events, reply/reject; pinned card + sheet; Q&A rendered from the `question` tool part |
+| Background alerts | A lifecycle-aware notification for pending questions/permissions; tapping opens the session |
 
 ---
 
@@ -336,9 +345,9 @@ Every shape below was read off that server, not the SDK types and not guessed.
 
 - `AGENTS.md` forbids a DI framework and a markdown library, and the codebase
   hand-rolls where a dependency would be less honest.
-- `ChatReducer`, `Markdown`, `Diff`, `Format`, `Fuzzy`, `Json`, `Sse` and
-  `OpenCodeWire` must stay JVM-testable, so the wire format cannot land in
-  Android-only code.
+- `ChatReducer`, `Markdown`, `Diff`, `Format`, `Fuzzy`, `Json`, `Sse`,
+  `OpenCodeWire` and `QuestionDraft` must stay JVM-testable, so the wire format
+  cannot land in Android-only code.
 - `org.json` is Android-only and *stubbed to throw* in JVM unit tests, so using
   it would push the mapping layer out of test reach.
 
@@ -460,6 +469,8 @@ not `data`. Event types map to `ServerEvent`:
 | `session.idle` | `SessionIdle` |
 | `session.status` | `SessionStatusChanged(sessionID, status)` |
 | `session.error` | `SessionFailed` |
+| `question.asked` | `QuestionAsked` |
+| `question.replied` / `question.rejected` | `QuestionReplied` / `QuestionRejected` |
 
 Unmapped types are dropped rather than logged as errors — the stream is
 documented as lossy and carries a great deal we do not render.
@@ -489,6 +500,17 @@ duplicating it.
 **Attachments** ride along as `FilePartInput { type:"file", mime, url, filename }`.
 The picker currently supplies the local content URI as `url`; converting it to
 the base64 data URI the contract expects is an open item (§10).
+
+**Questions** are a blocking request, not a permission. `question.asked` carries
+`{id, sessionID, questions[], tool?}`, where each question has `header`,
+`question`, `options[{label, description}]`, `multiple` and `custom`. Answers are
+arrays of selected labels in question order; a custom answer is simply a label.
+`GET /question` lists pending requests, `POST /question/{id}/reply` accepts
+`{"answers": [["label"], ...]}`, and `POST /question/{id}/reject` dismisses it.
+
+The `question` tool part is the durable record: its `state.input.questions`
+holds the prompts and `state.metadata.answers` holds the chosen labels, so the
+transcript can render the exchange after a restart.
 
 ### 8.7 Connection manager
 
@@ -578,9 +600,10 @@ All items are complete:
 
 ## 10. Open items
 
-1. **Reconnect reconcile.** The stream reconnects with backoff, but the
-   repository does not automatically re-fetch sessions or open transcripts after
-   a drop. The design intent is to reconcile on `server.connected`.
+1. **Reconnect reconcile.** The stream reconnects with backoff and re-fetches
+   pending questions on `server.connected`, but sessions and open transcripts
+   are not automatically re-fetched after a drop. The design intent is to
+   reconcile all three.
 2. **Base64 attachment encoding.** The picker and composer are wired, and a file
    part carries the picked URI. The v1 prompt contract expects a base64 `data:`
    URI, so a server that cannot resolve a device content URI will not receive

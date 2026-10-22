@@ -13,6 +13,9 @@ import dev.edgecode.core.model.PermissionKind
 import dev.edgecode.core.model.PermissionRequest
 import dev.edgecode.core.model.ProjectRef
 import dev.edgecode.core.model.ProviderInfo
+import dev.edgecode.core.model.QuestionInfo
+import dev.edgecode.core.model.QuestionOption
+import dev.edgecode.core.model.QuestionRequest
 import dev.edgecode.core.model.ServerEvent
 import dev.edgecode.core.model.SessionStatus
 import dev.edgecode.core.model.SessionSummary
@@ -24,9 +27,11 @@ import dev.edgecode.core.util.JsonValue
 import dev.edgecode.core.util.arr
 import dev.edgecode.core.util.asArray
 import dev.edgecode.core.util.asObject
+import dev.edgecode.core.util.asString
 import dev.edgecode.core.util.boolOr
 import dev.edgecode.core.util.doubleOr
 import dev.edgecode.core.util.encode
+import dev.edgecode.core.util.get
 import dev.edgecode.core.util.intOr
 import dev.edgecode.core.util.long
 import dev.edgecode.core.util.longOr
@@ -295,19 +300,32 @@ object OpenCodeWire {
 
         val input = json.obj("input")?.encode()
         val title = json.string("title")
+        val metadata = json.obj("metadata")
         // A `task` call records the child session it spawned here. Nothing else
         // in the part points at it, and the output only names it inside a
         // `<task id=…>` wrapper, so metadata is the reliable source.
-        val subagentId = json.obj("metadata")?.string("sessionId")
+        val subagentId = metadata?.string("sessionId")
+        // A `question` call puts the prompts in its input and the chosen labels
+        // in metadata.answers.
+        val questions = json.obj("input")?.arr("questions")
+            ?.map { questionInfo(it) }
+            .orEmpty()
+        val answers = questionAnswers(metadata?.get("answers"))
 
         return when (json.string("status")) {
-            "pending" -> ToolState(status = ToolStatus.Pending)
+            "pending" -> ToolState(
+                status = ToolStatus.Pending,
+                questions = questions,
+                answers = answers,
+            )
 
             "running" -> ToolState(
                 status = ToolStatus.Running,
                 title = title,
                 input = input,
                 subagentId = subagentId,
+                questions = questions,
+                answers = answers,
             )
 
             "completed" -> ToolState(
@@ -317,6 +335,8 @@ object OpenCodeWire {
                 output = json.string("output"),
                 durationMs = duration,
                 subagentId = subagentId,
+                questions = questions,
+                answers = answers,
             )
 
             "error" -> ToolState(
@@ -326,9 +346,15 @@ object OpenCodeWire {
                 output = json.string("error"),
                 durationMs = duration,
                 subagentId = subagentId,
+                questions = questions,
+                answers = answers,
             )
 
-            else -> ToolState(status = ToolStatus.Pending)
+            else -> ToolState(
+                status = ToolStatus.Pending,
+                questions = questions,
+                answers = answers,
+            )
         }
     }
 
@@ -362,6 +388,63 @@ object OpenCodeWire {
         permission.isEmpty() -> "Permission requested"
         pattern == null -> permission.replaceFirstChar { it.uppercase() }
         else -> permission.replaceFirstChar { it.uppercase() } + " " + pattern
+    }
+
+    // ---- questions ------------------------------------------------------
+
+    /**
+     * A question request. The server sends an array of questions, each with its
+     * own options, so a single request can mix single-select, multi-select and
+     * free-text answers.
+     */
+    fun questionRequest(json: JsonValue): QuestionRequest {
+        val tool = json.obj("tool")
+        return QuestionRequest(
+            id = json.stringOr("id", ""),
+            sessionId = json.stringOr("sessionID", ""),
+            questions = json.arr("questions").map { questionInfo(it) },
+            messageId = tool?.string("messageID"),
+            callId = tool?.string("callID"),
+        )
+    }
+
+    fun questionInfo(json: JsonValue): QuestionInfo = QuestionInfo(
+        question = json.stringOr("question", ""),
+        header = json.stringOr("header", "Question"),
+        options = json.arr("options")
+            .map { questionOption(it) }
+            .filter { it.label.isNotBlank() },
+        multiple = json.boolOr("multiple", false),
+        custom = json.boolOr("custom", false),
+    )
+
+    fun questionOption(json: JsonValue): QuestionOption = QuestionOption(
+        label = json.stringOr("label", ""),
+        description = json.stringOr("description", ""),
+    )
+
+    /** `answers` is an array of arrays of selected labels. */
+    fun questionAnswers(json: JsonValue?): List<List<String>> =
+        (json?.asArray ?: emptyList()).map { answer ->
+            (answer.asArray ?: emptyList()).mapNotNull { it.asString }
+        }
+
+    private fun questionEvent(type: String, json: JsonValue): ServerEvent? = when (type) {
+        "question.asked", "question.v2.asked" ->
+            if (json.string("id") == null) null else ServerEvent.QuestionAsked(questionRequest(json))
+
+        "question.replied", "question.v2.replied" -> ServerEvent.QuestionReplied(
+            sessionId = json.stringOr("sessionID", ""),
+            requestId = json.stringOr("requestID", ""),
+            answers = questionAnswers(json["answers"]),
+        )
+
+        "question.rejected", "question.v2.rejected" -> ServerEvent.QuestionRejected(
+            sessionId = json.stringOr("sessionID", ""),
+            requestId = json.stringOr("requestID", ""),
+        )
+
+        else -> null
     }
 
     // ---- errors ---------------------------------------------------------
@@ -477,8 +560,17 @@ object OpenCodeWire {
      * renders.
      */
     fun event(json: JsonValue): ServerEvent? {
+        val type = json.string("type") ?: return null
+
+        // Questions carry the payload under `properties` on the v1 stream and
+        // under `data` on the v2 global stream. Both shapes map identically.
+        if (type.startsWith("question.")) {
+            val payload = json.obj("properties") ?: json.obj("data") ?: return null
+            return questionEvent(type, payload)
+        }
+
         val properties = json.obj("properties") ?: return null
-        return when (val type = json.string("type")) {
+        return when (type) {
             "server.connected" -> ServerEvent.Connected(
                 properties.stringOr("version", ""),
             )
@@ -628,6 +720,16 @@ object OpenCodeWire {
 
     fun replyBody(reply: String): String =
         JsonValue.Obj(mapOf("reply" to JsonValue.Str(reply))).encode()
+
+    /** `{"answers": [["a"], ["b", "c"]]}` — one array per question, in order. */
+    fun questionReplyBody(answers: List<List<String>>): String =
+        JsonValue.Obj(
+            mapOf(
+                "answers" to JsonValue.Arr(
+                    answers.map { row -> JsonValue.Arr(row.map { JsonValue.Str(it) }) },
+                ),
+            ),
+        ).encode()
 
     fun commandBody(command: String, arguments: String, agent: String?, model: String?): String =
         JsonValue.Obj(

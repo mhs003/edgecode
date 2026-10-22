@@ -4,6 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,11 +32,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import dev.edgecode.core.design.EdgeIcons
 import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.Size
@@ -331,6 +336,78 @@ fun Chip(
             )
         }
         Text(text = text, style = MaterialTheme.typography.labelSmall, color = tint)
+    }
+}
+
+/**
+ * One choice in a question.
+ *
+ * A selected row takes the tonal fill and the accent indicator; an unselected
+ * one stays on the canvas so the form does not turn into a stack of cards. The
+ * indicator changes shape for multi-select, and the row carries radio/checkbox
+ * semantics so the selection is not communicated by colour alone.
+ */
+@Composable
+fun ChoiceRow(
+    label: String,
+    selected: Boolean,
+    multi: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    description: String? = null,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val edge = LocalEdgeColors.current
+    val shape = if (multi) RoundedCornerShape(Radius.xs) else CircleShape
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = Size.touch)
+            .clip(MaterialTheme.shapes.small)
+            .background(if (selected) scheme.surfaceContainer else Color.Transparent)
+            .selectable(
+                selected = selected,
+                role = if (multi) Role.Checkbox else Role.RadioButton,
+                onClick = onClick,
+            )
+            .padding(horizontal = Space.md, vertical = Space.sm),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(Space.md),
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(top = 2.dp)
+                .size(20.dp)
+                .clip(shape)
+                .background(if (selected) scheme.primary else Color.Transparent)
+                .border(Stroke.hairline, if (selected) scheme.primary else edge.faint, shape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) {
+                Icon(
+                    imageVector = EdgeIcons.Check,
+                    contentDescription = null,
+                    tint = scheme.onPrimary,
+                    modifier = Modifier.size(12.dp),
+                )
+            }
+        }
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = scheme.onSurface,
+            )
+            if (!description.isNullOrBlank()) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = edge.faint,
+                )
+            }
+        }
     }
 }
 

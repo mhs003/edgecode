@@ -10,6 +10,7 @@ import dev.edgecode.core.model.PermissionDecision
 import dev.edgecode.core.model.PermissionRequest
 import dev.edgecode.core.model.ProjectRef
 import dev.edgecode.core.model.ProviderInfo
+import dev.edgecode.core.model.QuestionRequest
 import dev.edgecode.core.model.ServerProfile
 import dev.edgecode.core.model.ServerEvent
 import dev.edgecode.core.model.SessionSummary
@@ -18,6 +19,7 @@ import dev.edgecode.data.demo.DemoOpenCodeApi
 import dev.edgecode.data.net.HttpOpenCodeApi
 import dev.edgecode.data.net.HttpTransport
 import dev.edgecode.data.net.OpenCodeWire
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -155,6 +157,15 @@ class AppRepository(
     private val _permissions = MutableStateFlow<List<PermissionRequest>>(emptyList())
     val permissions: StateFlow<List<PermissionRequest>> = _permissions.asStateFlow()
 
+    private val _questions = MutableStateFlow<List<QuestionRequest>>(emptyList())
+    val questions: StateFlow<List<QuestionRequest>> = _questions.asStateFlow()
+
+    private val _questionBusy = MutableStateFlow(false)
+    val questionBusy: StateFlow<Boolean> = _questionBusy.asStateFlow()
+
+    private val _questionError = MutableStateFlow<String?>(null)
+    val questionError: StateFlow<String?> = _questionError.asStateFlow()
+
     private val _catalog = MutableStateFlow(Catalog())
     val catalog: StateFlow<Catalog> = _catalog.asStateFlow()
 
@@ -187,7 +198,17 @@ class AppRepository(
             _connection.value = ConnectionState.Connected(profile, info)
             startEventStream(client)
             loadCatalog(client)
-            refreshSessions()
+            // Sessions and pending questions are independent, so they overlap
+            // rather than adding another round-trip to the connect path.
+            coroutineScope {
+                launch { refreshSessions() }
+                launch { refreshQuestions() }
+            }
+        } catch (cancellation: CancellationException) {
+            // Leaving the screen, a config change or an app update cancels the
+            // attempt. That is not a failed connection and must not be recorded
+            // as one — otherwise the saved row says "Canceled" on next launch.
+            throw cancellation
         } catch (t: Throwable) {
             _connection.value = ConnectionState.Failed(
                 profile,
@@ -219,6 +240,9 @@ class AppRepository(
         _connection.value = ConnectionState.Disconnected
         publishSessions(emptyList())
         _permissions.value = emptyList()
+        _questions.value = emptyList()
+        _questionError.value = null
+        _questionBusy.value = false
         _catalog.value = Catalog()
         chats.clear()
         chatViews.clear()
@@ -240,6 +264,14 @@ class AppRepository(
             is ServerEvent.PermissionRequested,
             is ServerEvent.PermissionResolved ->
                 _permissions.update { ChatReducer.reducePermissions(it, event) }
+            is ServerEvent.QuestionAsked,
+            is ServerEvent.QuestionReplied,
+            is ServerEvent.QuestionRejected ->
+                _questions.update { ChatReducer.reduceQuestions(it, event) }
+            // The stream is lossy and a question blocks the agent, so a
+            // reconnect re-fetches the pending list rather than trusting that
+            // the missed frames were unimportant.
+            is ServerEvent.Connected -> scope.launch { refreshQuestions() }
             else -> Unit
         }
 
@@ -294,8 +326,19 @@ class AppRepository(
         )
     }
 
+    /**
+     * REST is the truth for pending questions: the event stream is lossy, and a
+     * missed `question.asked` leaves the agent blocked with no way to answer.
+     */
+    suspend fun refreshQuestions() {
+        val client = api ?: return
+        runCatching { client.questions() }.onSuccess { _questions.value = it }
+    }
+
     fun openSession(sessionId: String) {
         val client = api ?: return
+        // Opening a chat is the moment a missed question becomes actionable.
+        scope.launch { refreshQuestions() }
         val state = chats.getOrPut(sessionId) { MutableStateFlow(SessionChatState(sessionId)) }
         if (state.value.messages.isNotEmpty()) return
         state.update { it.copy(loading = true, error = null) }
@@ -409,6 +452,51 @@ class AppRepository(
             runCatching { client.respondPermission(request.sessionId, request.id, decision, remember) }
             _permissions.update { list -> list.filterNot { it.id == request.id } }
         }
+    }
+
+    // --- Questions ---------------------------------------------------------
+
+    /**
+     * Keeps the request on screen until the server accepts the answer. Removing
+     * it optimistically would make a failed reply look like a successful one and
+     * leave the agent blocked with nothing to retry.
+     */
+    fun answerQuestion(request: QuestionRequest, answers: List<List<String>>) {
+        val client = api ?: return
+        if (_questionBusy.value) return
+        _questionBusy.value = true
+        _questionError.value = null
+        scope.launch {
+            runCatching { client.replyQuestion(request.id, answers) }
+                .onSuccess {
+                    _questions.update { list -> list.filterNot { it.id == request.id } }
+                }
+                .onFailure {
+                    _questionError.value = it.message ?: "Could not send the answer"
+                }
+            _questionBusy.value = false
+        }
+    }
+
+    fun rejectQuestion(request: QuestionRequest) {
+        val client = api ?: return
+        if (_questionBusy.value) return
+        _questionBusy.value = true
+        _questionError.value = null
+        scope.launch {
+            runCatching { client.rejectQuestion(request.id) }
+                .onSuccess {
+                    _questions.update { list -> list.filterNot { it.id == request.id } }
+                }
+                .onFailure {
+                    _questionError.value = it.message ?: "Could not skip the question"
+                }
+            _questionBusy.value = false
+        }
+    }
+
+    fun clearQuestionError() {
+        _questionError.value = null
     }
 }
 

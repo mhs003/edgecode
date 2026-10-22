@@ -45,6 +45,7 @@ fun CodeBlock(
     language: String? = null,
     modifier: Modifier = Modifier,
     maxLines: Int = 22,
+    showWrapToggle: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
     val edge = LocalEdgeColors.current
@@ -62,6 +63,8 @@ fun CodeBlock(
 
     val lines = remember(code) { code.split("\n") }
     var expanded by remember(code) { mutableStateOf(false) }
+    var wrapped by remember(language) { mutableStateOf(false) }
+    val scroll = rememberScrollState()
     val overflows = lines.size > maxLines
     val visible = if (overflows && !expanded) lines.take(maxLines).joinToString("\n") else code
     val highlighted = remember(visible, codeColors) { SyntaxHighlighter.highlight(visible, codeColors) }
@@ -87,6 +90,16 @@ fun CodeBlock(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            if (showWrapToggle) {
+                IconAction(
+                    icon = EdgeIcons.Wrap,
+                    contentDescription = if (wrapped) "Unwrap lines" else "Wrap lines",
+                    onClick = { wrapped = !wrapped },
+                    size = Size.touchSm,
+                    iconSize = Size.iconSm,
+                    tint = if (wrapped) scheme.primary else edge.faint,
+                )
+            }
             IconAction(
                 icon = EdgeIcons.Copy,
                 contentDescription = "Copy code",
@@ -99,13 +112,13 @@ fun CodeBlock(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
+                .then(if (wrapped) Modifier else Modifier.horizontalScroll(scroll))
                 .padding(horizontal = Space.md, vertical = Space.xs),
         ) {
             Text(
                 text = highlighted,
                 style = EdgeText.code,
-                softWrap = false,
+                softWrap = wrapped,
             )
         }
 

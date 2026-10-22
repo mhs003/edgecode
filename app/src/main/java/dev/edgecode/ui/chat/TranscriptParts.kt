@@ -56,6 +56,7 @@ import dev.edgecode.core.model.Attachment
 import dev.edgecode.core.model.DiffFile
 import dev.edgecode.core.model.DiffLineKind
 import dev.edgecode.core.model.Part
+import dev.edgecode.core.model.QuestionInfo
 import dev.edgecode.core.model.ToolState
 import dev.edgecode.core.model.ToolStatus
 import dev.edgecode.core.util.formatBytes
@@ -263,6 +264,24 @@ private fun ToolCallRow(
             )
         }
 
+        // A settled question call is the place the exchange belongs. Show the
+        // prompts and the chosen labels under the row, not buried in the raw
+        // tool output; a running question is still on the pinned card instead.
+        if (state.questions.isNotEmpty() &&
+            state.status != ToolStatus.Running &&
+            state.status != ToolStatus.Pending
+        ) {
+            QuestionAnswerBlock(
+                questions = state.questions,
+                answers = state.answers,
+                modifier = Modifier.padding(
+                    start = Space.lg,
+                    end = Space.sm,
+                    bottom = Space.sm,
+                ),
+            )
+        }
+
         AnimatedVisibility(
             visible = expanded,
             enter = fadeIn() + expandVertically(),
@@ -284,7 +303,7 @@ private fun ToolCallRow(
                     }
                 }
                 state.input?.let { input ->
-                    DetailBlock(label = "Input", body = input)
+                    DetailBlock(label = "Input", body = input, wrapToggle = true)
                 }
                 state.output?.let { output ->
                     DetailBlock(
@@ -340,15 +359,60 @@ private fun SubagentLink(onClick: () -> Unit) {
     }
 }
 
+/**
+ * The structured record of a question call: each prompt followed by the labels
+ * the user chose, or "Skipped" when the call was dismissed.
+ */
 @Composable
-private fun DetailBlock(label: String, body: String) {
+private fun QuestionAnswerBlock(
+    questions: List<QuestionInfo>,
+    answers: List<List<String>>,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val edge = LocalEdgeColors.current
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(Space.sm),
+    ) {
+        questions.forEachIndexed { index, question ->
+            val chosen = answers.getOrNull(index).orEmpty().filter { it.isNotBlank() }
+            Column(verticalArrangement = Arrangement.spacedBy(Space.xxs)) {
+                Text(
+                    text = question.header.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = edge.faint,
+                )
+                Text(
+                    text = question.question,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant,
+                )
+                Text(
+                    text = if (chosen.isEmpty()) "Skipped" else chosen.joinToString(" · "),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (chosen.isEmpty()) edge.faint else scheme.onSurface,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailBlock(label: String, body: String, wrapToggle: Boolean = false) {
     Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
         Text(
             text = label.uppercase(),
             style = MaterialTheme.typography.labelSmall,
             color = LocalEdgeColors.current.faint,
         )
-        CodeBlock(code = body, language = null, maxLines = 14)
+        CodeBlock(
+            code = body,
+            language = null,
+            maxLines = 14,
+            showWrapToggle = wrapToggle,
+        )
     }
 }
 

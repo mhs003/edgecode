@@ -10,6 +10,25 @@ release workflow uses the section below as the release notes.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-22
+
+### Added
+
+- Questions. The agent can ask one or more single-select or multi-select
+  questions, with an optional free-text answer. A pinned card shows the pending
+  question and a sheet collects every answer in the order the server expects.
+- The answered exchange stays in the transcript as the `question` tool's
+  output: each prompt and the labels chosen, or `Skipped`.
+- Background notifications for questions and permission requests while the app
+  is not visible. Tapping one opens the session that is blocked.
+- A wrap toggle beside the copy action on a tool call's input, so long commands
+  and JSON can be read without horizontal scrolling.
+
+### Fixed
+
+- A cancelled connection attempt is no longer recorded as a "Canceled"
+  saved-server failure.
+
 ## [1.0.2] - 2026-10-22
 
 ### Added

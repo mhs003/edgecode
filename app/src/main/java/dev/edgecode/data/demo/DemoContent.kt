@@ -13,6 +13,9 @@ import dev.edgecode.core.model.PermissionKind
 import dev.edgecode.core.model.PermissionRequest
 import dev.edgecode.core.model.ProjectRef
 import dev.edgecode.core.model.ProviderInfo
+import dev.edgecode.core.model.QuestionInfo
+import dev.edgecode.core.model.QuestionOption
+import dev.edgecode.core.model.QuestionRequest
 import dev.edgecode.core.model.SessionStatus
 import dev.edgecode.core.model.SessionSummary
 import dev.edgecode.core.model.SlashCommand
@@ -547,6 +550,7 @@ object DemoContent {
             val meta: List<Pair<String, String>> = emptyList(),
         ) : ScriptStep
         data class AskPermission(val request: PermissionRequest) : ScriptStep
+        data class AskQuestion(val request: QuestionRequest) : ScriptStep
         data class Diff(val files: List<DiffFile>) : ScriptStep
         data class Note(val text: String) : ScriptStep
     }
@@ -558,6 +562,7 @@ object DemoContent {
     fun replyScript(prompt: String, sessionId: String, agent: String): List<ScriptStep> {
         val lower = prompt.lowercase()
         return when {
+            lower.contains("question") || lower.contains("ask") -> questionScript()
             lower.contains("test") -> testScript()
             lower.contains("bug") || lower.contains("fix") || lower.contains("error") ->
                 fixScript(prompt)
@@ -566,6 +571,48 @@ object DemoContent {
             else -> exploreScript(prompt, agent)
         }
     }
+
+    /**
+     * Exercises both question scopes in one request: a single-select question
+     * with free text, and a multi-select question with free text.
+     */
+    private fun questionScript(): List<ScriptStep> = listOf(
+        ScriptStep.Reasoning(
+            "The request needs decisions before any work starts, so I should ask the two " +
+                "questions that change the shape of the answer.",
+        ),
+        ScriptStep.Text("I need a couple of decisions before I change anything."),
+        ScriptStep.AskQuestion(
+            QuestionRequest(
+                id = "que_demo",
+                sessionId = "",
+                questions = listOf(
+                    QuestionInfo(
+                        question = "Which target should I optimise for?",
+                        header = "Target",
+                        options = listOf(
+                            QuestionOption("Phone", "Keep the interaction fast and thumb-friendly."),
+                            QuestionOption("Tablet", "Use the extra space for a denser layout."),
+                            QuestionOption("Both", "Responsive rules for each size."),
+                        ),
+                        custom = true,
+                    ),
+                    QuestionInfo(
+                        question = "Which checks should I run?",
+                        header = "Checks",
+                        options = listOf(
+                            QuestionOption("Unit tests", "Fast JVM coverage of the pure logic."),
+                            QuestionOption("UI test", "Exercise the transcript and composer on-device."),
+                            QuestionOption("Contrast", "Verify every text tier in both themes."),
+                        ),
+                        multiple = true,
+                        custom = true,
+                    ),
+                ),
+            ),
+        ),
+        ScriptStep.Text("Thanks — I'll use those answers to narrow the change."),
+    )
 
     private fun testScript(): List<ScriptStep> = listOf(
         ScriptStep.Reasoning(

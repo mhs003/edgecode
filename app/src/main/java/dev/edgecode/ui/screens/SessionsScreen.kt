@@ -82,6 +82,7 @@ fun SessionsScreen(
     val edge = LocalEdgeColors.current
     val connection by viewModel.connection.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
+    val questions by viewModel.questions.collectAsState()
     val catalog by viewModel.catalog.collectAsState()
 
     var searchOpen by remember { mutableStateOf(false) }
@@ -103,6 +104,7 @@ fun SessionsScreen(
     }
     val active = filtered.filter { it.status != SessionStatus.Idle }
     val recent = filtered.filter { it.status == SessionStatus.Idle }
+    val questionSessions = remember(questions) { questions.map { it.sessionId }.toSet() }
 
     Column(
         modifier = modifier
@@ -188,6 +190,7 @@ fun SessionsScreen(
                     itemsIndexed(active, key = { _, s -> s.id }) { _, session ->
                         SessionRow(
                             session = session,
+                            hasQuestion = session.id in questionSessions,
                             onOpen = { viewModel.openSession(session.id) },
                             onRename = { renaming = session },
                             onDelete = { deleting = session },
@@ -199,6 +202,7 @@ fun SessionsScreen(
                     itemsIndexed(recent, key = { _, s -> s.id }) { _, session ->
                         SessionRow(
                             session = session,
+                            hasQuestion = session.id in questionSessions,
                             onOpen = { viewModel.openSession(session.id) },
                             onRename = { renaming = session },
                             onDelete = { deleting = session },
@@ -431,6 +435,7 @@ private fun BannerRow(
 @Composable
 private fun SessionRow(
     session: SessionSummary,
+    hasQuestion: Boolean,
     onOpen: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
@@ -464,13 +469,26 @@ private fun SessionRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = session.title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = titleColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Space.sm),
+            ) {
+                Text(
+                    text = session.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = titleColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                if (hasQuestion) {
+                    Chip(
+                        text = "Question",
+                        icon = EdgeIcons.Info,
+                        accent = edge.info,
+                    )
+                }
+            }
             Spacer(Modifier.height(Space.xs))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // Only the metadata is weighted. Two weighted children would

@@ -8,6 +8,8 @@ import dev.edgecode.core.model.SessionStatus
 import dev.edgecode.core.model.ToolStatus
 import dev.edgecode.core.util.JsonValue
 import dev.edgecode.core.util.arr
+import dev.edgecode.core.util.asArray
+import dev.edgecode.core.util.asString
 import dev.edgecode.core.util.encode
 import dev.edgecode.core.util.get
 import dev.edgecode.core.util.obj
@@ -604,6 +606,138 @@ class OpenCodeWireTest {
         ) as Part.Tool
 
         assertEquals("ses_child", part.state.subagentId)
+    }
+
+    // ---- questions ------------------------------------------------------
+
+    @Test
+    fun pendingQuestionsMapFromRealServerOutput() {
+        val request = OpenCodeWire.questionRequest(fixture("questions.json")[0]!!)
+
+        assertEquals("que_16220cf5f001aS8bnC1ysCEJ8s", request.id)
+        assertEquals("ses_e9ddf4f72ffetwy2XFRfCKvPIP", request.sessionId)
+        assertEquals("msg_16220baa0001YAMS7yb7MxlZZq", request.messageId)
+        assertEquals("call_00_289v2m791ggiijd1e891iu29", request.callId)
+
+        assertEquals(2, request.questions.size)
+        val target = request.questions[0]
+        assertEquals("Target", target.header)
+        assertEquals("Which target should this optimise for?", target.question)
+        assertEquals(3, target.options.size)
+        assertEquals("Phone (fast and thumb-friendly)", target.options[0].label)
+        assertEquals("Optimise for phones: fast and thumb-friendly", target.options[0].description)
+        assertFalse(target.multiple)
+        assertFalse(target.custom)
+
+        val checks = request.questions[1]
+        assertEquals("Checks", checks.header)
+        assertTrue(checks.multiple)
+    }
+
+    @Test
+    fun questionAskedEventMapsFromRealServerOutput() {
+        val event = OpenCodeWire.event(fixture("question-asked.json"))
+        val asked = event as ServerEvent.QuestionAsked
+
+        assertEquals("que_16221594b00185QTkKT2wFN2dT", asked.request.id)
+        assertEquals("ses_e9ddeb2ccffeM8ibe39385FKZa", asked.request.sessionId)
+        assertEquals("Colour", asked.request.questions.single().header)
+        assertEquals(
+            listOf("Teal", "Amber", "Slate"),
+            asked.request.questions.single().options.map { it.label },
+        )
+        assertEquals("msg_16221520e001W7kHIyxtzu5fbu", asked.request.messageId)
+    }
+
+    @Test
+    fun questionRepliedEventMapsFromRealServerOutput() {
+        val event = OpenCodeWire.event(fixture("question-replied.json"))
+        val replied = event as ServerEvent.QuestionReplied
+
+        assertEquals("ses_e9ddf4f72ffetwy2XFRfCKvPIP", replied.sessionId)
+        assertEquals("que_16220cf5f001aS8bnC1ysCEJ8s", replied.requestId)
+        assertEquals(
+            listOf(
+                listOf("Both (responsive)"),
+                listOf("Unit tests", "Contrast", "A custom check"),
+            ),
+            replied.answers,
+        )
+    }
+
+    @Test
+    fun aQuestionWithCustomAndNoOptionsStillMaps() {
+        val request = OpenCodeWire.questionRequest(
+            json(
+                """
+                {"id":"que_x","sessionID":"ses_x","questions":[
+                  {"question":"Name it","header":"Name","options":[],"custom":true}
+                ]}
+                """.trimIndent(),
+            ),
+        )
+
+        val question = request.questions.single()
+        assertTrue(question.custom)
+        assertTrue(question.options.isEmpty())
+        assertFalse(question.multiple)
+    }
+
+    @Test
+    fun v2QuestionEventsMapToTheSameDomainEvent() {
+        val event = OpenCodeWire.event(
+            json(
+                """
+                {"type":"question.v2.asked","properties":{
+                  "id":"que_x","sessionID":"ses_x","questions":[
+                    {"question":"Q","header":"H","options":[{"label":"A","description":"a"}]}
+                  ]}}
+                """.trimIndent(),
+            ),
+        )
+
+        assertTrue(event is ServerEvent.QuestionAsked)
+        assertEquals("que_x", (event as ServerEvent.QuestionAsked).request.id)
+    }
+
+    @Test
+    fun aQuestionEventUnderDataStillMaps() {
+        val event = OpenCodeWire.event(
+            json(
+                """
+                {"type":"question.asked","data":{
+                  "id":"que_x","sessionID":"ses_x","questions":[]}}
+                """.trimIndent(),
+            ),
+        )
+
+        assertTrue(event is ServerEvent.QuestionAsked)
+    }
+
+    @Test
+    fun questionReplyBodyKeepsQuestionOrderAndLabels() {
+        val body = OpenCodeWire.questionReplyBody(
+            listOf(listOf("One"), listOf("Two", "Three")),
+        )
+        val answers = json(body)["answers"]!!.asArray!!
+
+        assertEquals(listOf("One"), answers[0]!!.asArray!!.mapNotNull { it.asString })
+        assertEquals(
+            listOf("Two", "Three"),
+            answers[1]!!.asArray!!.mapNotNull { it.asString },
+        )
+    }
+
+    @Test
+    fun aCompletedQuestionToolCarriesItsPromptsAndAnswers() {
+        val part = OpenCodeWire.part(fixture("question-tool.json")) as Part.Tool
+
+        assertEquals("question", part.name)
+        assertEquals("Asked 1 question", part.state.title)
+        assertEquals(1, part.state.questions.size)
+        assertEquals("Target", part.state.questions.single().header)
+        assertEquals("Select a target:", part.state.questions.single().question)
+        assertEquals(listOf(listOf("Alpha")), part.state.answers)
     }
 
     @Test

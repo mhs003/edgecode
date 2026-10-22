@@ -11,6 +11,7 @@ import dev.edgecode.core.model.PermissionDecision
 import dev.edgecode.core.model.PermissionRequest
 import dev.edgecode.core.model.ProjectRef
 import dev.edgecode.core.model.ProviderInfo
+import dev.edgecode.core.model.QuestionRequest
 import dev.edgecode.core.model.ServerEvent
 import dev.edgecode.core.model.ServerInfo
 import dev.edgecode.core.model.SessionStatus
@@ -60,6 +61,8 @@ class DemoOpenCodeApi(
     private val transcripts = ConcurrentHashMap<String, MutableList<ChatMessage>>()
     private val permissions = ConcurrentHashMap<String, MutableList<PermissionRequest>>()
     private val pendingAnswers = ConcurrentHashMap<String, CompletableDeferred<PermissionDecision>>()
+    private val questions = ConcurrentHashMap<String, MutableList<QuestionRequest>>()
+    private val pendingQuestionAnswers = ConcurrentHashMap<String, CompletableDeferred<QuestionOutcome>>()
     private val running = ConcurrentHashMap<String, Job>()
     private val counter = AtomicInteger(0)
 
@@ -95,6 +98,7 @@ class DemoOpenCodeApi(
         const val RenameSession = 50L
         const val DeleteSession = 60L
         const val Models = 45L
+        const val Questions = 30L
         const val Agents = 30L
         const val Commands = 25L
         const val Providers = 30L
@@ -276,6 +280,31 @@ class DemoOpenCodeApi(
         emit(ServerEvent.PermissionResolved(requestId))
     }
 
+    // --- Questions ---------------------------------------------------------
+
+    override suspend fun questions(): List<QuestionRequest> {
+        delay(scaled(Latency.Questions))
+        return questions.values.flatten()
+    }
+
+    override suspend fun replyQuestion(requestId: String, answers: List<List<String>>) {
+        val request = takeQuestion(requestId) ?: return
+        pendingQuestionAnswers.remove(requestId)?.complete(QuestionOutcome.Answers(answers))
+        emit(ServerEvent.QuestionReplied(request.sessionId, requestId, answers))
+    }
+
+    override suspend fun rejectQuestion(requestId: String) {
+        val request = takeQuestion(requestId) ?: return
+        pendingQuestionAnswers.remove(requestId)?.complete(QuestionOutcome.Rejected)
+        emit(ServerEvent.QuestionRejected(request.sessionId, requestId))
+    }
+
+    private fun takeQuestion(requestId: String): QuestionRequest? {
+        val request = questions.values.flatten().firstOrNull { it.id == requestId }
+        questions.values.forEach { it.removeAll { question -> question.id == requestId } }
+        return request
+    }
+
     // --- Catalogue ---------------------------------------------------------
 
     override suspend fun commands(): List<SlashCommand> {
@@ -301,6 +330,13 @@ class DemoOpenCodeApi(
     override suspend fun close() {
         running.values.forEach { it.cancel() }
         running.clear()
+        pendingQuestionAnswers.values.forEach { it.cancel() }
+        pendingQuestionAnswers.clear()
+    }
+
+    private sealed interface QuestionOutcome {
+        data class Answers(val answers: List<List<String>>) : QuestionOutcome
+        data object Rejected : QuestionOutcome
     }
 
     // --- Playback ----------------------------------------------------------
@@ -373,6 +409,85 @@ class DemoOpenCodeApi(
                             Part.Tool(partId, step.toolId, step.name, doneState),
                         ),
                     )
+                }
+
+                is DemoContent.ScriptStep.AskQuestion -> {
+                    val callId = nextId("call")
+                    val toolPartId = nextId("part")
+                    val request = step.request.copy(
+                        id = nextId("que"),
+                        sessionId = sessionId,
+                        messageId = assistantId,
+                        callId = callId,
+                    )
+                    val title = if (request.questions.size == 1) {
+                        "Asked 1 question"
+                    } else {
+                        "Asked ${request.questions.size} questions"
+                    }
+                    emit(
+                        ServerEvent.PartUpserted(
+                            sessionId, assistantId,
+                            Part.Tool(
+                                toolPartId, callId, "question",
+                                ToolState(
+                                    status = ToolStatus.Running,
+                                    title = title,
+                                    questions = request.questions,
+                                ),
+                            ),
+                        ),
+                    )
+
+                    val answer = CompletableDeferred<QuestionOutcome>()
+                    pendingQuestionAnswers[request.id] = answer
+                    questions.getOrPut(sessionId) { mutableListOf() }.add(request)
+                    emit(ServerEvent.QuestionAsked(request))
+
+                    when (val outcome = answer.await()) {
+                        is QuestionOutcome.Answers -> {
+                            emit(
+                                ServerEvent.PartUpserted(
+                                    sessionId, assistantId,
+                                    Part.Tool(
+                                        toolPartId, callId, "question",
+                                        ToolState(
+                                            status = ToolStatus.Completed,
+                                            title = title,
+                                            questions = request.questions,
+                                            answers = outcome.answers,
+                                        ),
+                                    ),
+                                ),
+                            )
+                        }
+
+                        QuestionOutcome.Rejected -> {
+                            emit(
+                                ServerEvent.PartUpserted(
+                                    sessionId, assistantId,
+                                    Part.Tool(
+                                        toolPartId, callId, "question",
+                                        ToolState(
+                                            status = ToolStatus.Completed,
+                                            title = title,
+                                            questions = request.questions,
+                                        ),
+                                    ),
+                                ),
+                            )
+                            emit(
+                                ServerEvent.PartUpserted(
+                                    sessionId, assistantId,
+                                    Part.Note(nextId("part"), "Skipped the question."),
+                                ),
+                            )
+                            finishAssistant(sessionId, assistantId)
+                            setStatus(sessionId, SessionStatus.Idle)
+                            emit(ServerEvent.SessionIdle(sessionId))
+                            return
+                        }
+                    }
                 }
 
                 is DemoContent.ScriptStep.Diff -> {

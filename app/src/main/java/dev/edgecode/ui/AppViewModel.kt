@@ -10,6 +10,7 @@ import dev.edgecode.core.model.ModelRef
 import dev.edgecode.core.model.ModelSelection
 import dev.edgecode.core.model.PermissionDecision
 import dev.edgecode.core.model.PermissionRequest
+import dev.edgecode.core.model.QuestionRequest
 import dev.edgecode.core.model.ServerProfile
 import dev.edgecode.core.model.SessionSummary
 import dev.edgecode.data.AppRepository
@@ -54,6 +55,9 @@ class AppViewModel(
     val sessions: StateFlow<List<SessionSummary>> = repository.sessions
     val subagents: StateFlow<List<SessionSummary>> = repository.subagents
     val permissions: StateFlow<List<PermissionRequest>> = repository.permissions
+    val questions: StateFlow<List<QuestionRequest>> = repository.questions
+    val questionBusy: StateFlow<Boolean> = repository.questionBusy
+    val questionError: StateFlow<String?> = repository.questionError
     val catalog: StateFlow<Catalog> = repository.catalog
     val settings_: StateFlow<Settings> = settings.state
     val savedConnections: StateFlow<List<SavedConnection>> = connections.state
@@ -67,6 +71,9 @@ class AppViewModel(
 
     private val _stack = MutableStateFlow<List<Screen>>(listOf(Screen.Connect))
     val stack: StateFlow<List<Screen>> = _stack.asStateFlow()
+
+    /** Set when a notification was tapped before the connection was ready. */
+    private var pendingSessionId: String? = null
 
     private val _selection = MutableStateFlow(ModelSelection())
     val modelSelection: StateFlow<ModelSelection> = _selection.asStateFlow()
@@ -99,6 +106,7 @@ class AppViewModel(
                 )
                 if (repository.connection.value.isConnected) {
                     _stack.value = listOf(Screen.Sessions)
+                    maybeOpenPendingSession()
                 }
             }
         }
@@ -126,6 +134,7 @@ class AppViewModel(
                 saved?.let { connections.markUsed(it.id) }
                 if (remember) settings.saveServer(normalized, normalized, user)
                 _stack.value = listOf(Screen.Sessions)
+                maybeOpenPendingSession()
             } else if (state is ConnectionState.Failed) {
                 saved?.let { connections.touch(it.id, state.message) }
             }
@@ -155,6 +164,7 @@ class AppViewModel(
                 connections.markUsed(connection.id)
                 settings.saveServer(url, connection.name, connection.username)
                 _stack.value = listOf(Screen.Sessions)
+                maybeOpenPendingSession()
             } else if (state is ConnectionState.Failed) {
                 connections.touch(connection.id, state.message)
             }
@@ -194,6 +204,7 @@ class AppViewModel(
             if (repository.connection.value.isConnected) {
                 if (remember) settings.saveServer("demo://localhost", "Demo server", null)
                 _stack.value = listOf(Screen.Sessions)
+                maybeOpenPendingSession()
             }
         }
     }
@@ -253,6 +264,31 @@ class AppViewModel(
     }
 
     /**
+     * Opens the session a notification pointed at. If the connection is still
+     * being established, the id waits until it succeeds; a cold start from a
+     * notification therefore lands on the blocked chat rather than the list.
+     */
+    fun openFromNotification(sessionId: String) {
+        pendingSessionId = sessionId
+        maybeOpenPendingSession()
+    }
+
+    private fun maybeOpenPendingSession() {
+        val sessionId = pendingSessionId ?: return
+        if (!repository.connection.value.isConnected) return
+        pendingSessionId = null
+
+        val current = _stack.value.lastOrNull()
+        if (current is Screen.Chat && current.sessionId == sessionId) return
+
+        if (repository.subagents.value.any { it.id == sessionId }) {
+            openSubagent(sessionId)
+        } else {
+            openSession(sessionId)
+        }
+    }
+
+    /**
      * Handles system back. Returns true when the event was consumed, so the
      * activity knows whether to finish.
      */
@@ -281,7 +317,10 @@ class AppViewModel(
     }
 
     fun refresh() {
-        scope.launch { repository.refreshSessions() }
+        scope.launch {
+            repository.refreshSessions()
+            repository.refreshQuestions()
+        }
     }
 
     // --- Chat --------------------------------------------------------------
@@ -320,6 +359,14 @@ class AppViewModel(
 
     fun respondPermission(request: PermissionRequest, decision: PermissionDecision, remember: Boolean) =
         repository.respondPermission(request, decision, remember)
+
+    fun answerQuestion(request: QuestionRequest, answers: List<List<String>>) =
+        repository.answerQuestion(request, answers)
+
+    fun rejectQuestion(request: QuestionRequest) =
+        repository.rejectQuestion(request)
+
+    fun clearQuestionError() = repository.clearQuestionError()
 
     fun setAgent(agent: String) {
         _selectedAgent.value = agent

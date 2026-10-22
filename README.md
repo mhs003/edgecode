@@ -13,8 +13,11 @@ EdgeCode brings your OpenCode coding sessions to your Android device. Connect to
 - **Model selection** — Choose models from connected providers, with search and recently used models.
 - **Agent selection** — Switch agents and use slash commands.
 - **Tool permissions** — Review and respond to permission requests from agents.
+- **Questions** — Answer single- or multi-select prompts, or type a custom answer; the exchange stays in the transcript.
+- **Background alerts** — Get a notification when the agent asks a question or needs permission while the app is not visible.
 - **Attachments** — Add images and documents to a prompt from the composer.
 - **Markdown rendering** — Read formatted responses and syntax-highlighted code.
+- **Tool details** — Expand a call to inspect its input and output, and wrap long inputs in place instead of scrolling horizontally.
 - **Demo mode** — Explore the interface using sample data without connecting to a server.
 - **Native Android experience** — A focused interface designed specifically for mobile devices.
 

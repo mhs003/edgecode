@@ -3,6 +3,7 @@ package dev.edgecode
 import android.content.Context
 import android.os.SystemClock
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -11,9 +12,14 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import dev.edgecode.ui.chat.ComposerInputTestTag
 import dev.edgecode.ui.chat.ComposerTestTag
+import dev.edgecode.ui.chat.QuestionCardTestTag
+import dev.edgecode.ui.chat.QuestionSheetTestTag
 import dev.edgecode.ui.screens.TranscriptTestTag
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -109,6 +115,39 @@ class ChatLayoutAndResponsivenessTest {
      * the navigation bar the composer stops short of the window bottom, which is
      * what produced the floating-composer behaviour.
      */
+    @Test
+    fun aQuestionCanBeAnsweredWithoutLeavingTheChat() {
+        openFirstSession()
+        // The Crossfade from the session list settles after the composer tag
+        // first appears; typing before then targets a node that is about to be
+        // replaced by the incoming chat.
+        rule.waitForIdle()
+
+        rule.onNodeWithTag(ComposerInputTestTag).performTextInput("ask me a question")
+        rule.onNodeWithContentDescription("Send").performClick()
+        rule.waitUntil(timeoutMillis = 10_000) {
+            rule.onAllNodesWithTag(QuestionCardTestTag).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        rule.onNodeWithText("Answer").performTouchInput { click() }
+        rule.waitUntil(timeoutMillis = 5_000) {
+            rule.onAllNodesWithTag(QuestionSheetTestTag).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        rule.onNodeWithText("Phone").performClick()
+        rule.onNodeWithText("Unit tests").performClick()
+        rule.onNodeWithText("Send answers").performClick()
+
+        rule.waitUntil(timeoutMillis = 10_000) {
+            rule.onAllNodesWithTag(QuestionCardTestTag).fetchSemanticsNodes().isEmpty()
+        }
+
+        // The answered exchange must now be the question tool's output in the
+        // transcript, and it must be on screen without another tap.
+        rule.onNodeWithText("Phone").assertIsDisplayed()
+        rule.onNodeWithText("Unit tests").assertIsDisplayed()
+    }
+
     @Test
     fun composerOccupiesTheBottomOfTheWindow() {
         openFirstSession()

@@ -9,6 +9,9 @@ import dev.edgecode.core.model.ModelRef
 import dev.edgecode.core.model.PermissionDecision
 import dev.edgecode.core.model.ProjectRef
 import dev.edgecode.core.model.ProviderInfo
+import dev.edgecode.core.model.QuestionInfo
+import dev.edgecode.core.model.QuestionOption
+import dev.edgecode.core.model.QuestionRequest
 import dev.edgecode.core.model.ServerEvent
 import dev.edgecode.core.model.ServerInfo
 import dev.edgecode.core.model.ServerProfile
@@ -41,6 +44,7 @@ class AppRepositoryTest {
         private val latencyMs: Long = 100,
         private val sessionList: List<SessionSummary> = emptyList(),
         private val statuses: Map<String, SessionStatus> = emptyMap(),
+        private val questionList: List<QuestionRequest> = emptyList(),
     ) : OpenCodeApi {
 
         private val inFlight = AtomicInteger(0)
@@ -109,6 +113,13 @@ class AppRepositoryTest {
             decision: PermissionDecision,
             remember: Boolean,
         ) = call(Unit)
+
+        override suspend fun questions(): List<QuestionRequest> = call(questionList)
+
+        override suspend fun replyQuestion(requestId: String, answers: List<List<String>>) =
+            call(Unit)
+
+        override suspend fun rejectQuestion(requestId: String) = call(Unit)
 
         override suspend fun commands(): List<SlashCommand> = call(emptyList())
         override suspend fun agents(): List<AgentInfo> = call(emptyList())
@@ -187,5 +198,26 @@ class AppRepositoryTest {
         repository.connect(ServerProfile("t", "test", "http://localhost:4096"))
 
         assertEquals(SessionStatus.Working, repository.sessions.value.single().status)
+    }
+
+    @Test
+    fun connectPublishesPendingQuestions() = runBlocking {
+        val request = QuestionRequest(
+            id = "que_1",
+            sessionId = "root",
+            questions = listOf(
+                QuestionInfo(
+                    question = "Which target?",
+                    header = "Target",
+                    options = listOf(QuestionOption("Phone", "Fast")),
+                ),
+            ),
+        )
+        val api = FakeApi(latencyMs = 1, questionList = listOf(request))
+        val repository = AppRepository(this) { _, _ -> api }
+
+        repository.connect(ServerProfile("t", "test", "http://localhost:4096"))
+
+        assertEquals(listOf(request), repository.questions.value)
     }
 }

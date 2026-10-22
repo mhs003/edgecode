@@ -2,6 +2,8 @@ package dev.edgecode.data
 
 import dev.edgecode.core.model.ChatMessage
 import dev.edgecode.core.model.Part
+import dev.edgecode.core.model.QuestionInfo
+import dev.edgecode.core.model.QuestionRequest
 import dev.edgecode.core.model.ServerEvent
 import dev.edgecode.core.model.ToolState
 import dev.edgecode.core.model.ToolStatus
@@ -25,6 +27,51 @@ class ChatReducerTest {
         createdAt = 2L,
         streaming = streaming,
     )
+
+    private fun question(id: String = "que_1") = QuestionRequest(
+        id = id,
+        sessionId = session,
+        questions = listOf(QuestionInfo(question = "Which one?", header = "Choice")),
+    )
+
+    @Test
+    fun `a question is added and replaced by id`() {
+        val original = question()
+        val added = ChatReducer.reduceQuestions(
+            emptyList(),
+            ServerEvent.QuestionAsked(original),
+        )
+        assertEquals(listOf(original), added)
+
+        val updated = original.copy(
+            questions = listOf(QuestionInfo(question = "Which one now?", header = "Choice")),
+        )
+        val replaced = ChatReducer.reduceQuestions(
+            added,
+            ServerEvent.QuestionAsked(updated),
+        )
+        assertEquals(1, replaced.size)
+        assertEquals(updated, replaced.single())
+    }
+
+    @Test
+    fun `replied and rejected questions are removed`() {
+        val first = question("que_1")
+        val second = question("que_2")
+        val current = listOf(first, second)
+
+        val replied = ChatReducer.reduceQuestions(
+            current,
+            ServerEvent.QuestionReplied(session, first.id, listOf(listOf("A"))),
+        )
+        assertEquals(listOf(second), replied)
+
+        val rejected = ChatReducer.reduceQuestions(
+            current,
+            ServerEvent.QuestionRejected(session, second.id),
+        )
+        assertEquals(listOf(first), rejected)
+    }
 
     @Test
     fun `appends a new message`() {

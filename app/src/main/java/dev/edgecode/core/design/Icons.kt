@@ -476,5 +476,17 @@ object EdgeIcons {
         }
     }
 
+    /** Toggle line wrapping in a code or tool-input block. */
+    val Wrap: ImageVector by lazy {
+        strokeIcon("Wrap") {
+            stroke {
+                moveTo(4f, 7f); lineTo(20f, 7f)
+                moveTo(4f, 17f); lineTo(20f, 17f)
+                moveTo(4f, 12f); lineTo(16f, 12f)
+                moveTo(13f, 9.5f); lineTo(16f, 12f); lineTo(13f, 14.5f)
+            }
+        }
+    }
+
     private fun ImageVector.Builder.light(block: PathBuilder.() -> Unit) = strokeLight(block)
 }

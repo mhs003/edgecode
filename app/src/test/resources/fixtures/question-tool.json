@@ -1,0 +1,43 @@
+{
+  "id": "prt_162702fa5001nN1oASJIcWhfqc",
+  "sessionID": "ses_e9d8fe7c7ffepC7BqbfajukM8v",
+  "messageID": "msg_16270198e0015zB0xbb2CGQXC1",
+  "type": "tool",
+  "callID": "call_00_k4kpaye4lwktp7ks8asr21ts",
+  "tool": "question",
+  "state": {
+    "status": "completed",
+    "input": {
+      "questions": [
+        {
+          "header": "Target",
+          "question": "Select a target:",
+          "options": [
+            {
+              "label": "Alpha",
+              "description": "Choose Alpha"
+            },
+            {
+              "label": "Beta",
+              "description": "Choose Beta"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "User has answered your questions: \"Select a target:\"=\"Alpha\". You can now continue with the user's answers in mind.",
+    "title": "Asked 1 question",
+    "metadata": {
+      "answers": [
+        [
+          "Alpha"
+        ]
+      ],
+      "truncated": false
+    },
+    "time": {
+      "start": 1792652882125,
+      "end": 1792652882740
+    }
+  }
+}

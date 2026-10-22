@@ -1,19 +1,26 @@
 package dev.edgecode
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.drawable.ColorDrawable
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -29,14 +36,35 @@ import dev.edgecode.ui.screens.ChatScreen
 import dev.edgecode.ui.screens.ConnectScreen
 import dev.edgecode.ui.screens.SessionsScreen
 import dev.edgecode.ui.screens.SettingsScreen
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class MainActivity : ComponentActivity() {
+
+    private lateinit var notifications: Notifications
+
+    /** A session the user asked for by tapping a notification. */
+    private val deepLink = MutableStateFlow<String?>(null)
+
+    private val notificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        deepLink.value = intent?.getStringExtra(NOTIFICATION_SESSION_ID)
 
         val settingsStore = SettingsStore(applicationContext)
         val connectionsStore = ConnectionsStore(applicationContext)
+        notifications = Notifications(applicationContext)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
 
         // Paint the right background before the first Compose frame. Without
         // this a light-theme start flashes the dark window background and vice
@@ -57,11 +85,35 @@ class MainActivity : ComponentActivity() {
                 factory = AppViewModelFactory(settingsStore, connectionsStore),
             )
             val settings by viewModel.settings_.collectAsState()
+            val link by deepLink.collectAsState()
+
+            LaunchedEffect(link) {
+                link?.let {
+                    viewModel.openFromNotification(it)
+                    deepLink.value = null
+                }
+            }
 
             EdgeTheme(themeMode = settings.themeMode) {
-                EdgeApp(viewModel)
+                EdgeApp(viewModel, notifications)
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        deepLink.value = intent.getStringExtra(NOTIFICATION_SESSION_ID)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        notifications.setForeground(true)
+    }
+
+    override fun onStop() {
+        notifications.setForeground(false)
+        super.onStop()
     }
 }
 
@@ -73,9 +125,11 @@ class MainActivity : ComponentActivity() {
  * and the dependency surface under our control.
  */
 @Composable
-private fun EdgeApp(viewModel: AppViewModel) {
+private fun EdgeApp(viewModel: AppViewModel, notifications: Notifications) {
     val stack by viewModel.stack.collectAsState()
     val current = stack.lastOrNull() ?: Screen.Connect
+
+    NotificationWatcher(viewModel, notifications)
 
     // Only intercept back when there is somewhere to return to.
     BackHandler(enabled = stack.size > 1) { viewModel.back() }
@@ -98,5 +152,28 @@ private fun EdgeApp(viewModel: AppViewModel) {
                 viewModel = viewModel,
             )
         }
+    }
+}
+
+/**
+ * Posts a notification for a blocking prompt only while the activity is
+ * stopped. The flow collectors stay alive in the background, which is exactly
+ * the window where an SSE-delivered question or permission would otherwise go
+ * unseen.
+ */
+@Composable
+private fun NotificationWatcher(viewModel: AppViewModel, notifications: Notifications) {
+    val questions by viewModel.questions.collectAsState()
+    val permissions by viewModel.permissions.collectAsState()
+    val sessions by viewModel.sessions.collectAsState()
+    val subagents by viewModel.subagents.collectAsState()
+    val foreground by notifications.foreground.collectAsState()
+    val allSessions = remember(sessions, subagents) { sessions + subagents }
+
+    LaunchedEffect(foreground, questions, allSessions) {
+        notifications.syncQuestions(questions, allSessions)
+    }
+    LaunchedEffect(foreground, permissions, allSessions) {
+        notifications.syncPermissions(permissions, allSessions)
     }
 }

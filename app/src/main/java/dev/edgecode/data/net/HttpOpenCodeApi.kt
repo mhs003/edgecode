@@ -9,6 +9,7 @@ import dev.edgecode.core.model.ModelRef
 import dev.edgecode.core.model.PermissionDecision
 import dev.edgecode.core.model.ProjectRef
 import dev.edgecode.core.model.ProviderInfo
+import dev.edgecode.core.model.QuestionRequest
 import dev.edgecode.core.model.ServerEvent
 import dev.edgecode.core.model.ServerInfo
 import dev.edgecode.core.model.SessionSummary
@@ -143,6 +144,21 @@ class HttpOpenCodeApi(
             PermissionDecision.Reject -> "reject"
         }
         transport.request("POST", "/permission/$requestId/reply", body = OpenCodeWire.replyBody(reply))
+    }
+
+    override suspend fun questions(): List<QuestionRequest> =
+        (get("/question").asArray ?: emptyList()).map { OpenCodeWire.questionRequest(it) }
+
+    override suspend fun replyQuestion(requestId: String, answers: List<List<String>>) {
+        transport.request(
+            "POST",
+            "/question/$requestId/reply",
+            body = OpenCodeWire.questionReplyBody(answers),
+        )
+    }
+
+    override suspend fun rejectQuestion(requestId: String) {
+        transport.request("POST", "/question/$requestId/reject")
     }
 
     override suspend fun commands(): List<SlashCommand> = OpenCodeWire.commands(get("/command"))

@@ -11,6 +11,7 @@ import dev.edgecode.core.model.PermissionDecision
 import dev.edgecode.core.model.PermissionRequest
 import dev.edgecode.core.model.ProjectRef
 import dev.edgecode.core.model.ProviderInfo
+import dev.edgecode.core.model.QuestionRequest
 import dev.edgecode.core.model.ServerEvent
 import dev.edgecode.core.model.ServerInfo
 import dev.edgecode.core.model.SessionSummary
@@ -75,6 +76,18 @@ interface OpenCodeApi {
         decision: PermissionDecision,
         remember: Boolean,
     )
+
+    /** Pending questions across every session, in the server's order. */
+    suspend fun questions(): List<QuestionRequest>
+
+    /**
+     * Answers one question request. [answers] must hold one array per question,
+     * in the order the questions were asked; each array contains selected labels
+     * (or one free-text label).
+     */
+    suspend fun replyQuestion(requestId: String, answers: List<List<String>>)
+
+    suspend fun rejectQuestion(requestId: String)
 
     suspend fun commands(): List<SlashCommand>
 
@@ -196,8 +209,6 @@ object ChatReducer {
                 }
                 current.toMutableList().also { it[index] = updated }
             }
-
-            else -> current
         }
     }
 
@@ -275,6 +286,25 @@ object ChatReducer {
     ): List<PermissionRequest> = when (event) {
         is ServerEvent.PermissionRequested -> current + event.request
         is ServerEvent.PermissionResolved -> current.filterNot { it.id == event.requestId }
+        else -> current
+    }
+
+    fun reduceQuestions(
+        current: List<QuestionRequest>,
+        event: ServerEvent,
+    ): List<QuestionRequest> = when (event) {
+        is ServerEvent.QuestionAsked -> {
+            val index = current.indexOfFirst { it.id == event.request.id }
+            if (index >= 0) {
+                current.toMutableList().also { it[index] = event.request }
+            } else {
+                current + event.request
+            }
+        }
+        is ServerEvent.QuestionReplied ->
+            current.filterNot { it.id == event.requestId }
+        is ServerEvent.QuestionRejected ->
+            current.filterNot { it.id == event.requestId }
         else -> current
     }
 }

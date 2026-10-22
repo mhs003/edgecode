@@ -29,6 +29,19 @@ large at the component level. The next design pass should reduce weight and
 scale across controls, labels, chips, headers and chat spacing. Treat this as a
 direction to explore, not a defect in the implementation.
 
+## Question and tool surfaces (1.1)
+
+- A pending question is a compact pinned card, not a modal that opens on its
+  own. The multi-question form lives in a sheet with a fixed footer and a
+  scrollable body, so it does not push the transcript away.
+- The answered exchange is rendered in the transcript as the `question` tool's
+  output — prompts and chosen labels — not only in the transient card.
+- A tool call's raw input can be wrapped on demand with an icon beside copy;
+  fenced code keeps horizontal scroll. The toggle is an action, not a switch.
+- A blocked agent while the app is backgrounded raises one alert per request,
+  with the session as the destination. It is a notification, not a full-screen
+  intent: the decision can wait until the user returns.
+
 ---
 
 ## Tastes that produced the current design

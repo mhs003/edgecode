@@ -68,6 +68,9 @@ import dev.edgecode.core.util.loadThumbnail
 /** Test tag for the composer container, used by the inset regression tests. */
 const val ComposerTestTag = "composer"
 
+/** Test tag for the editable field, so tests can type without hunting the placeholder. */
+const val ComposerInputTestTag = "composer-input"
+
 /**
  * Message input.
  *
@@ -150,6 +153,7 @@ fun Composer(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = Space.lg, end = Space.lg, top = Space.lg, bottom = Space.md)
+                    .testTag(ComposerInputTestTag)
                     .onPreviewKeyEvent { event ->
                         if (sendOnEnter &&
                             event.type == KeyEventType.KeyDown &&

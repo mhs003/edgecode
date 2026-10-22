@@ -40,6 +40,7 @@ check `tad doctor` before assuming a compile error is a code error.
 ```
 app/src/main/java/dev/edgecode/
 ├── MainActivity.kt          entry point + navigation host
+├── Notifications.kt         background alerts for questions and permissions
 ├── core/
 │   ├── design/              tokens, theme, icons, and reusable components
 │   ├── markdown/            CommonMark subset parser, inline spans, highlighter
@@ -55,7 +56,7 @@ app/src/main/java/dev/edgecode/
 │   └── demo/                fixture content + demo API implementation
 └── ui/
     ├── AppViewModel.kt      navigation stack, wiring
-    ├── chat/                transcript parts, composer, pickers, permissions
+    ├── chat/                transcript parts, composer, pickers, questions
     └── screens/             Connect, Sessions, Chat, Settings
 ```
 
@@ -68,8 +69,9 @@ app/src/main/java/dev/edgecode/
   `SavedConnection`), but nothing above `data/` may reference a wire format. All
   server interaction goes through `OpenCodeApi`.
 - **Keep pure logic pure.** `ChatReducer`, `Markdown`, `SyntaxHighlighter`,
-  `Diff`, `Format`, `Fuzzy`, `Json`, `Sse` and `OpenCodeWire` must stay free of
-  Android and coroutine types so they are unit-testable on the JVM. That is
+  `Diff`, `Format`, `Fuzzy`, `Json`, `Sse`, `OpenCodeWire` and `QuestionDraft`
+  must stay free of Android and coroutine types so they are unit-testable on
+  the JVM. That is
   where the real complexity lives.
 - **Protocol logic belongs in a pure function.** `Json`, `Sse` and
   `OpenCodeWire` hold every decision about the wire format and are tested on the
@@ -155,6 +157,16 @@ Current chat clients render one canvas with one fill. Match that.
   `GET /session/status` are the live and REST sources, and the REST map omits
   idle sessions. `time.compacting` is the only in-payload working hint. Mapping
   neither leaves every row looking idle.
+- **A question is a blocking request, not a permission.** `question.asked`
+  carries an array of `QuestionInfo`; answers are arrays of selected labels in
+  the same order, and `custom` contributes a free-text label. Reply to
+  `/question/{id}/reply`, reject to `/question/{id}/reject`.
+- **The question tool part is the durable record.** Its
+  `state.input.questions` and `state.metadata.answers` survive a restart, so
+  render the exchange from the part rather than only from the event.
+- **Notifications cover a backgrounded process, not a killed one.** The SSE
+  stream lives as long as the ViewModel; a killed process receives nothing, so
+  the notification path is scoped to the backgrounded window.
 
 ## Commits
 

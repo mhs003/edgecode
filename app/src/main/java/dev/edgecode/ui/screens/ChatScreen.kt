@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -79,6 +80,7 @@ import dev.edgecode.core.model.ModelRef
 import dev.edgecode.core.model.Part
 import dev.edgecode.core.model.SessionStatus
 import dev.edgecode.core.model.SessionSummary
+import dev.edgecode.core.model.ToolStatus
 import dev.edgecode.core.util.formatCost
 import dev.edgecode.core.util.formatTokens
 import dev.edgecode.core.util.queryFileMetadata
@@ -88,6 +90,8 @@ import dev.edgecode.ui.chat.Composer
 import dev.edgecode.ui.chat.MessageRow
 import dev.edgecode.ui.chat.ModelPickerSheet
 import dev.edgecode.ui.chat.PermissionCard
+import dev.edgecode.ui.chat.QuestionCard
+import dev.edgecode.ui.chat.QuestionSheet
 import dev.edgecode.ui.chat.WorkingIndicator
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -133,6 +137,7 @@ fun ChatScreen(
     val scheme = MaterialTheme.colorScheme
     val edge = LocalEdgeColors.current
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
 
     // Held in a remember so the collector is not restarted if the repository
     // ever hands back a different instance.
@@ -142,6 +147,9 @@ fun ChatScreen(
     val allSubagents by viewModel.subagents.collectAsState()
     val catalog by viewModel.catalog.collectAsState()
     val permissions by viewModel.permissions.collectAsState()
+    val questions by viewModel.questions.collectAsState()
+    val questionBusy by viewModel.questionBusy.collectAsState()
+    val questionError by viewModel.questionError.collectAsState()
     val settings by viewModel.settings_.collectAsState()
     val selection by viewModel.modelSelection.collectAsState()
     // Resolved per chat: what was picked here but not sent yet, else what this
@@ -156,6 +164,7 @@ fun ChatScreen(
     var showAgents by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var showSubagents by remember { mutableStateOf(false) }
+    var showQuestion by remember { mutableStateOf(false) }
 
     // Measured, not assumed: the composer grows with the prompt, and the
     // transcript has to reserve exactly as much room as it currently occupies
@@ -175,6 +184,21 @@ fun ChatScreen(
     }
     val pending = remember(permissions, sessionId) {
         permissions.filter { it.sessionId == sessionId }
+    }
+    // A question blocks the agent, so it is the first thing shown above the
+    // composer. Only one request is active at a time; the next appears when this
+    // one is answered.
+    val pendingQuestion = remember(questions, sessionId) {
+        questions.firstOrNull { it.sessionId == sessionId }
+    }
+    LaunchedEffect(pendingQuestion?.id) {
+        if (pendingQuestion == null) {
+            showQuestion = false
+        } else {
+            // The agent is waiting; the composer is not the active surface. This
+            // also keeps the keyboard from covering the question card.
+            focusManager.clearFocus()
+        }
     }
 
     val picker = rememberLauncherForActivityResult(
@@ -242,7 +266,19 @@ fun ChatScreen(
         ?.sumOf { (it as? Part.Text)?.text?.length ?: 0 }
         ?: 0
 
-    LaunchedEffect(messages.size, streamingGrowth, working) {
+    // A question's answers land as a tool-part update after the question event.
+    // That update grows the transcript, so it has to be a follow trigger too.
+    val questionSettled = messages.lastOrNull()
+        ?.let { last -> (last as? ChatMessage.Assistant)?.parts }
+        ?.filterIsInstance<Part.Tool>()
+        ?.any {
+            it.state.questions.isNotEmpty() &&
+                it.state.status != ToolStatus.Running &&
+                it.state.status != ToolStatus.Pending
+        }
+        ?: false
+
+    LaunchedEffect(messages.size, streamingGrowth, questionSettled, working) {
         // Do not yank the list while a gesture or fling is in flight: a reader
         // scrolling away mid-stream must win over the next token. Following is
         // re-armed when that scroll settles at the end.
@@ -250,6 +286,18 @@ fun ChatScreen(
             // The indicator is one past the last message, so the newest turn and
             // the fact that it is still being worked on arrive together.
             listState.scrollToEnd(if (working) messages.size else messages.lastIndex)
+        }
+    }
+
+    // Answering a question swaps the pinned card for the question tool's output
+    // in the transcript. The answer is a deliberate action, so reveal its result
+    // even if the keyboard or sheet moved the list away from the end while the
+    // form was open.
+    LaunchedEffect(questionSettled) {
+        if (questionSettled && messages.isNotEmpty()) {
+            // The answer was just submitted, so this scroll is the reader's
+            // intent even if the sheet dismissal is still settling the list.
+            listState.scrollToEnd(messages.lastIndex)
         }
     }
 
@@ -483,12 +531,22 @@ fun ChatScreen(
         // The composer floats over the transcript. It reserves its measured
         // height in the list's bottom padding, so the last turn can always be
         // scrolled clear of it while everything else passes underneath.
-        if (pending.isNotEmpty()) {
+        if (pendingQuestion != null || pending.isNotEmpty()) {
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = composerHeightDp),
             ) {
+                pendingQuestion?.let { request ->
+                    QuestionCard(
+                        request = request,
+                        onAnswer = {
+                            viewModel.clearQuestionError()
+                            showQuestion = true
+                        },
+                        onSkip = { viewModel.rejectQuestion(request) },
+                    )
+                }
                 pending.take(1).forEach { request ->
                     PermissionCard(
                         request = request,
@@ -575,6 +633,20 @@ fun ChatScreen(
                 viewModel.openSubagent(id)
             },
             onDismiss = { showSubagents = false },
+        )
+    }
+
+    if (showQuestion && pendingQuestion != null) {
+        QuestionSheet(
+            request = pendingQuestion,
+            busy = questionBusy,
+            error = questionError,
+            onAnswer = { answers -> viewModel.answerQuestion(pendingQuestion, answers) },
+            onSkip = { viewModel.rejectQuestion(pendingQuestion) },
+            onDismiss = {
+                showQuestion = false
+                viewModel.clearQuestionError()
+            },
         )
     }
 }

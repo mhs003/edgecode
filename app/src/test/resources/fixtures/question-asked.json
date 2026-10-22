@@ -1,0 +1,33 @@
+{
+  "id": "evt_16221594c001l6JV3z7ZkUlAe2",
+  "type": "question.asked",
+  "properties": {
+    "id": "que_16221594b00185QTkKT2wFN2dT",
+    "sessionID": "ses_e9ddeb2ccffeM8ibe39385FKZa",
+    "questions": [
+      {
+        "question": "Which colour should the header use?",
+        "header": "Colour",
+        "options": [
+          {
+            "label": "Teal",
+            "description": "Use a teal header colour."
+          },
+          {
+            "label": "Amber",
+            "description": "Use an amber header colour."
+          },
+          {
+            "label": "Slate",
+            "description": "Use a slate header colour."
+          }
+        ],
+        "multiple": false
+      }
+    ],
+    "tool": {
+      "messageID": "msg_16221520e001W7kHIyxtzu5fbu",
+      "callID": "call_00_qjd4mtd1yistqhiaiumqr1fg"
+    }
+  }
+}

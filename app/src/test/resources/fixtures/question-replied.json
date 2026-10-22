@@ -1,0 +1,18 @@
+{
+  "id": "evt_162210c75001pXI0ZKfqYE2SoV",
+  "type": "question.replied",
+  "properties": {
+    "sessionID": "ses_e9ddf4f72ffetwy2XFRfCKvPIP",
+    "requestID": "que_16220cf5f001aS8bnC1ysCEJ8s",
+    "answers": [
+      [
+        "Both (responsive)"
+      ],
+      [
+        "Unit tests",
+        "Contrast",
+        "A custom check"
+      ]
+    ]
+  }
+}

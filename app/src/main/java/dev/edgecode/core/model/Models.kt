@@ -134,6 +134,13 @@ data class ToolState(
      * transcript once the call settles.
      */
     val subagentId: String? = null,
+    /**
+     * A `question` call carries the questions it asked in its input and the
+     * chosen labels in its metadata. Keeping them structured lets the transcript
+     * show the exchange where it happened instead of a raw JSON dump.
+     */
+    val questions: List<QuestionInfo> = emptyList(),
+    val answers: List<List<String>> = emptyList(),
 )
 
 // --- Diffs -----------------------------------------------------------------
@@ -234,6 +241,43 @@ data class PermissionRequest(
 )
 
 enum class PermissionDecision { Once, Always, Reject }
+
+// --- Questions -------------------------------------------------------------
+
+data class QuestionOption(
+    val label: String,
+    val description: String = "",
+)
+
+/**
+ * One question the agent wants answered.
+ *
+ * [header] is the agent's own short label for the question; [question] is the
+ * full text. [multiple] switches the choice rows between radio and checkbox
+ * behaviour. [custom] adds a free-text answer alongside (or instead of) the
+ * offered options.
+ */
+data class QuestionInfo(
+    val question: String,
+    val header: String,
+    val options: List<QuestionOption> = emptyList(),
+    val multiple: Boolean = false,
+    val custom: Boolean = false,
+)
+
+/**
+ * A blocking request for one or more answers.
+ *
+ * [messageId] and [callId] link the request to the tool call that asked it,
+ * when the server supplies them.
+ */
+data class QuestionRequest(
+    val id: String,
+    val sessionId: String,
+    val questions: List<QuestionInfo>,
+    val messageId: String? = null,
+    val callId: String? = null,
+)
 
 // --- Providers, models, agents --------------------------------------------
 
@@ -373,6 +417,19 @@ sealed interface ServerEvent {
     data class MessageRemoved(val sessionId: String, val messageId: String) : ServerEvent
     data class PermissionRequested(val request: PermissionRequest) : ServerEvent
     data class PermissionResolved(val requestId: String) : ServerEvent
+
+    /** The agent is blocked until this question is answered or rejected. */
+    data class QuestionAsked(val request: QuestionRequest) : ServerEvent
+
+    /** One answer per question, in the order the questions were asked. */
+    data class QuestionReplied(
+        val sessionId: String,
+        val requestId: String,
+        val answers: List<List<String>> = emptyList(),
+    ) : ServerEvent
+
+    data class QuestionRejected(val sessionId: String, val requestId: String) : ServerEvent
+
     data class SessionIdle(val sessionId: String) : ServerEvent
     data class SessionFailed(val sessionId: String, val message: String) : ServerEvent
 
