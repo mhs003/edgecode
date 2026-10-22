@@ -29,6 +29,18 @@ large at the component level. The next design pass should reduce weight and
 scale across controls, labels, chips, headers and chat spacing. Treat this as a
 direction to explore, not a defect in the implementation.
 
+## Overflow and connection editing (1.2)
+
+- Every three-dot control opens a bottom sheet rather than a dropdown anchored
+  to the control. The sheet header names the session, server or connection the
+  actions apply to; the actions sit at thumb height.
+- Saved connections are editable in the same form used to add one, but the form
+  never pretends to store a password.
+- Test connection is a peer of Connect, not a hidden validation step: it answers
+  "is this reachable" without changing the connection or the saved list.
+- A new connection appears in the saved list only after health succeeds. A
+  failed attempt is not a saved server.
+
 ## Question and tool surfaces (1.1)
 
 - A pending question is a compact pinned card, not a modal that opens on its

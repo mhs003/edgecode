@@ -44,7 +44,7 @@ sophistication, adaptive density, subtle surfaces, no card-per-section.
 |---|---|
 | v1 transport (HTTP + SSE) | Implemented in `data/net` |
 | Event reduction | Implemented as pure `ChatReducer` |
-| Connect / saved servers | Implemented |
+| Connect / saved servers (edit, test, save after health) | Implemented |
 | Sessions (list, status, search, create, rename, delete) | Implemented |
 | Chat transcript, streaming, markdown, code, diffs | Implemented |
 | Tools, permissions | Implemented |
@@ -235,9 +235,10 @@ through `runCommand`.
   flag, optimistic sends and permission removal.
 - Sessions are published as two views of one list: roots (`sessions`) and
   children (`subagents`). A subagent is a branch, not a chat.
-- Initial state comes from REST: connect fetches the catalog and session list,
-  and the first open of a chat fetches its messages. The stream accelerates the
-  UI; it never defines truth.
+- Initial state comes from REST: health decides the connection, then the
+  catalogue, session list and pending questions load behind the session screen.
+  The first open of a chat fetches its messages. The stream accelerates the UI;
+  it never defines truth.
 
 ### 4.3 Model selection
 
@@ -324,7 +325,8 @@ pushed over Sessions or Chat. Back from Chat returns without losing stream state
 
 | Requirement | Approach |
 |---|---|
-| Credentials at launch, validate, then land in sessions | Connect screen → `GET /global/health` then `GET /session`; only then persist the profile |
+| Credentials at launch, validate, then land in sessions | Connect screen → `GET /global/health`; land on sessions immediately, with the session list loading behind it |
+| Saved servers | Edit name, address and username; Test runs health without side effects; a new server is saved only after health succeeds |
 | Session list, resume or create in a directory | `GET /session`, `POST /session` with `directory`, `PATCH` rename, `DELETE` |
 | Live status in the list | `session.status` events merged with `GET /session/status`; the payload only infers compacting |
 | Dark default + light/system themes | `SharedPreferences`-backed `ThemeMode`; `DESIGN.md` tokens for both |
@@ -550,11 +552,20 @@ retry or a tap on a saved server does not re-prompt.
 
 - Saved connections list first — name, url, relative "last used", and the last
   failure when there is one. Tapping connects; the row being dialled shows a
-  spinner.
-- "New connection" opens the form: URL, optional username, optional password,
-  and a **"Save for later"** toggle (default on).
+  spinner. The row's three-dot opens a sheet with Edit and Remove.
+- "New connection" opens the form: optional display name, URL, optional
+  username, optional password, and a **"Save for later"** toggle (default on).
+  The same form edits a saved server's name, address and username; passwords
+  are never stored.
+- **Test connection** sits beside Connect (and beside Save when editing). It
+  runs only the health check and leaves the active connection and saved list
+  untouched. Connect still checks health when Test is skipped.
 - `normalizeUrl` prefixes `http://` when no scheme is given and trims a trailing
   slash.
+- Health decides the connection. The stack moves to Sessions as soon as it
+  succeeds, and the saved record is written only then; the catalogue, session
+  list and pending questions load behind the screen, which shows a loading state
+  instead of the empty state.
 - Failures render in place with the server's own message.
 
 ### 8.9 Testing

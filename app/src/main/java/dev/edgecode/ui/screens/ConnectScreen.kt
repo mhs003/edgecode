@@ -16,13 +16,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -41,6 +43,7 @@ import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
 import dev.edgecode.core.design.Stroke
+import dev.edgecode.core.design.components.ActionSheet
 import dev.edgecode.core.design.components.EdgeButton
 import dev.edgecode.core.design.components.EdgeSecondaryButton
 import dev.edgecode.core.design.components.EdgeTextField
@@ -48,11 +51,14 @@ import dev.edgecode.core.design.components.EdgeTopBar
 import dev.edgecode.core.design.components.ErrorNotice
 import dev.edgecode.core.design.components.IconAction
 import dev.edgecode.core.design.components.Section
+import dev.edgecode.core.design.components.SheetAction
+import dev.edgecode.core.design.components.SheetHeader
 import dev.edgecode.core.design.components.TextAction
 import dev.edgecode.core.design.components.bottomSystemInset
 import dev.edgecode.core.design.components.tappable
 import dev.edgecode.core.design.components.topSystemInset
 import dev.edgecode.core.model.ConnectionState
+import dev.edgecode.core.model.ServerInfo
 import dev.edgecode.core.util.formatRelative
 import dev.edgecode.data.SavedConnection
 import dev.edgecode.ui.AppViewModel
@@ -74,6 +80,7 @@ fun ConnectScreen(
     val saved = viewModel.savedConnections.collectAsState().value
 
     var formOpen by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -81,12 +88,33 @@ fun ConnectScreen(
     var saveForLater by remember { mutableStateOf(true) }
     var prompting by remember { mutableStateOf<SavedConnection?>(null) }
     var removing by remember { mutableStateOf<SavedConnection?>(null) }
+    var actionTarget by remember { mutableStateOf<SavedConnection?>(null) }
+    var editing by remember { mutableStateOf<SavedConnection?>(null) }
+    var testing by remember { mutableStateOf(false) }
+    var testMessage by remember { mutableStateOf<String?>(null) }
+    var testOk by remember { mutableStateOf(false) }
 
     val connecting = connection is ConnectionState.Connecting
     // Which saved server is being dialled, so that row can say so. The state
     // carries the profile, so no separate "connecting to" flag is needed.
     val connectingId = (connection as? ConnectionState.Connecting)?.profile?.id
     val failure = (connection as? ConnectionState.Failed)?.message
+
+    fun testConnection() {
+        testing = true
+        testMessage = null
+        testOk = false
+        viewModel.testConnection(url, username, password) { result ->
+            testing = false
+            result.onSuccess {
+                testOk = true
+                testMessage = "Reachable · ${it.label}"
+            }.onFailure {
+                testOk = false
+                testMessage = it.message ?: "Could not reach the server"
+            }
+        }
+    }
 
     Column(
         modifier = modifier
@@ -117,7 +145,7 @@ fun ConnectScreen(
                                     viewModel.connectSaved(savedConnection, null)
                                 }
                             },
-                            onRemove = { removing = savedConnection },
+                            onActions = { actionTarget = savedConnection },
                         )
                     }
                 }
@@ -140,8 +168,16 @@ fun ConnectScreen(
                         verticalArrangement = Arrangement.spacedBy(Space.lg),
                     ) {
                         EdgeTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = "Name",
+                            placeholder = "Display name (optional)",
+                            leadingIcon = EdgeIcons.Server,
+                        )
+
+                        EdgeTextField(
                             value = url,
-                            onValueChange = { url = it },
+                            onValueChange = { url = it; testMessage = null },
                             label = "Server address",
                             placeholder = "192.168.1.10:4096",
                             leadingIcon = EdgeIcons.Server,
@@ -152,7 +188,7 @@ fun ConnectScreen(
 
                         EdgeTextField(
                             value = username,
-                            onValueChange = { username = it },
+                            onValueChange = { username = it; testMessage = null },
                             label = "Username",
                             placeholder = "opencode",
                             leadingIcon = EdgeIcons.Person,
@@ -161,7 +197,7 @@ fun ConnectScreen(
 
                         EdgeTextField(
                             value = password,
-                            onValueChange = { password = it },
+                            onValueChange = { password = it; testMessage = null },
                             label = "Password",
                             placeholder = "Server password",
                             leadingIcon = EdgeIcons.Lock,
@@ -190,18 +226,43 @@ fun ConnectScreen(
                             ErrorNotice(message = failure)
                         }
 
-                        EdgeButton(
-                            text = if (connecting) "Connecting" else "Connect",
-                            onClick = {
-                                viewModel.connect(url, username, password, saveForLater)
-                            },
-                            enabled = url.isNotBlank(),
-                            loading = connecting,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                            EdgeSecondaryButton(
+                                text = "Test connection",
+                                onClick = { testConnection() },
+                                enabled = url.isNotBlank() && !connecting,
+                                loading = testing,
+                                modifier = Modifier.weight(1f),
+                            )
+                            EdgeButton(
+                                text = if (connecting) "Connecting" else "Connect",
+                                onClick = {
+                                    testMessage = null
+                                    viewModel.connect(url, username, password, saveForLater, name)
+                                },
+                                enabled = url.isNotBlank() && !testing,
+                                loading = connecting,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+
+                        testMessage?.let { message ->
+                            Text(
+                                text = message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (testOk) LocalEdgeColors.current.success else scheme.error,
+                            )
+                        }
                     }
                 }
             }
+
+            Spacer(Modifier.height(Space.lg))
+
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = Space.gutter),
+                color = scheme.outlineVariant,
+            )
 
             Column(
                 modifier = Modifier.padding(horizontal = Space.gutter, vertical = Space.lg),
@@ -248,6 +309,34 @@ fun ConnectScreen(
             },
         )
     }
+
+    actionTarget?.let { target ->
+        ActionSheet(
+            title = target.name,
+            subtitle = target.url.takeIf { it != target.name },
+            onDismiss = { actionTarget = null },
+            actions = listOf(
+                SheetAction("Edit", EdgeIcons.Edit) { editing = target },
+                SheetAction("Remove", EdgeIcons.Trash, destructive = true) {
+                    removing = target
+                },
+            ),
+        )
+    }
+
+    editing?.let { target ->
+        EditConnectionSheet(
+            connection = target,
+            onDismiss = { editing = null },
+            onTest = { testUrl, testUser, onResult ->
+                viewModel.testConnection(testUrl, testUser, null, onResult)
+            },
+            onSave = { name, editUrl, editUser ->
+                editing = null
+                viewModel.updateSavedConnection(target.id, name, editUrl, editUser)
+            },
+        )
+    }
 }
 
 /**
@@ -264,11 +353,10 @@ private fun SavedRow(
     connecting: Boolean,
     enabled: Boolean,
     onConnect: () -> Unit,
-    onRemove: () -> Unit,
+    onActions: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     val edge = LocalEdgeColors.current
-    var menu by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
@@ -327,21 +415,126 @@ private fun SavedRow(
                 strokeWidth = Stroke.thin,
             )
         } else {
-            Box {
-                IconAction(
-                    icon = EdgeIcons.More,
-                    contentDescription = "Connection actions",
-                    onClick = { menu = true },
-                    size = Size.touchSm,
-                    iconSize = Size.iconSm,
+            IconAction(
+                icon = EdgeIcons.More,
+                contentDescription = "Connection actions",
+                onClick = onActions,
+                size = Size.touchSm,
+                iconSize = Size.iconSm,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditConnectionSheet(
+    connection: SavedConnection,
+    onDismiss: () -> Unit,
+    onTest: (String, String?, (Result<ServerInfo>) -> Unit) -> Unit,
+    onSave: (String, String, String?) -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val edge = LocalEdgeColors.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    var name by remember { mutableStateOf(connection.name) }
+    var url by remember { mutableStateOf(connection.url) }
+    var username by remember { mutableStateOf(connection.username.orEmpty()) }
+    var testing by remember { mutableStateOf(false) }
+    var testMessage by remember { mutableStateOf<String?>(null) }
+    var testOk by remember { mutableStateOf(false) }
+
+    fun testConnection() {
+        testing = true
+        testMessage = null
+        testOk = false
+        onTest(url, username.trim().takeIf { it.isNotBlank() }) { result ->
+            testing = false
+            result.onSuccess {
+                testOk = true
+                testMessage = "Reachable · ${it.label}"
+            }.onFailure {
+                testOk = false
+                testMessage = it.message ?: "Could not reach the server"
+            }
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = scheme.surface,
+        dragHandle = null,
+    ) {
+        Column(modifier = Modifier.padding(bottom = Space.xl)) {
+            SheetHeader(
+                title = "Edit connection",
+                subtitle = connection.url,
+                onClose = onDismiss,
+            )
+
+            Column(
+                modifier = Modifier.padding(horizontal = Space.gutter),
+                verticalArrangement = Arrangement.spacedBy(Space.lg),
+            ) {
+                EdgeTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = "Name",
+                    placeholder = "Display name",
+                    leadingIcon = EdgeIcons.Server,
                 )
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Remove", color = scheme.error) },
+                EdgeTextField(
+                    value = url,
+                    onValueChange = { url = it; testMessage = null },
+                    label = "Server address",
+                    placeholder = "192.168.1.10:4096",
+                    leadingIcon = EdgeIcons.Server,
+                    keyboardType = KeyboardType.Uri,
+                    imeAction = ImeAction.Next,
+                )
+                EdgeTextField(
+                    value = username,
+                    onValueChange = { username = it; testMessage = null },
+                    label = "Username",
+                    placeholder = "opencode",
+                    leadingIcon = EdgeIcons.Person,
+                )
+                Text(
+                    text = "Passwords are never saved. Reconnecting asks for one " +
+                        "when the server needs it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = edge.faint,
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                    EdgeSecondaryButton(
+                        text = "Test connection",
+                        onClick = { testConnection() },
+                        enabled = url.isNotBlank(),
+                        loading = testing,
+                        modifier = Modifier.weight(1f),
+                    )
+                    EdgeButton(
+                        text = "Save",
                         onClick = {
-                            menu = false
-                            onRemove()
+                            onSave(
+                                name,
+                                url,
+                                username.trim().takeIf { it.isNotBlank() },
+                            )
                         },
+                        enabled = url.isNotBlank() && !testing,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                testMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (testOk) edge.success else scheme.error,
                     )
                 }
             }

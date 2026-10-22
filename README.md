@@ -6,7 +6,7 @@ EdgeCode brings your OpenCode coding sessions to your Android device. Connect to
 
 ## Features
 
-- **Server connections** — Connect to an OpenCode server over HTTP, save connections, and optionally use Basic Authentication.
+- **Server connections** — Connect to an OpenCode server over HTTP, save, edit and test connections, and optionally use Basic Authentication. A connection is added only after it answers a health check.
 - **Session management** — Browse existing sessions and see at a glance which ones are still working.
 - **Live streaming** — Follow assistant responses as they arrive, including reasoning, tool calls, diffs, and notes.
 - **Subagents** — Work an agent delegates runs in its own session, reachable from the call that started it and read-only, so it never appears as a chat of its own.

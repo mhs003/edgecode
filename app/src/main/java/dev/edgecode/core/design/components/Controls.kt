@@ -101,21 +101,30 @@ fun EdgeSecondaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    loading: Boolean = false,
     icon: ImageVector? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val active = enabled && !loading
     Row(
         modifier = modifier
             .heightIn(min = 48.dp)
             .clip(MaterialTheme.shapes.medium)
             .background(scheme.surfaceContainer)
             .border(Stroke.hairline, scheme.outlineVariant, MaterialTheme.shapes.medium)
-            .tappable(enabled = enabled, onClick = onClick)
+            .tappable(enabled = active, onClick = onClick)
             .padding(horizontal = Space.xl),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
-        if (icon != null) {
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(Size.iconSm),
+                strokeWidth = 2.dp,
+                color = scheme.primary,
+            )
+            Spacer(Modifier.width(Space.sm))
+        } else if (icon != null) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
@@ -127,7 +136,7 @@ fun EdgeSecondaryButton(
         Text(
             text = text,
             style = MaterialTheme.typography.labelLarge,
-            color = if (enabled) scheme.onSurface else LocalEdgeColors.current.faint,
+            color = if (active) scheme.onSurface else LocalEdgeColors.current.faint,
         )
     }
 }

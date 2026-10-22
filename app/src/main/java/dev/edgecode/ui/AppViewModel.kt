@@ -11,6 +11,7 @@ import dev.edgecode.core.model.ModelSelection
 import dev.edgecode.core.model.PermissionDecision
 import dev.edgecode.core.model.PermissionRequest
 import dev.edgecode.core.model.QuestionRequest
+import dev.edgecode.core.model.ServerInfo
 import dev.edgecode.core.model.ServerProfile
 import dev.edgecode.core.model.SessionSummary
 import dev.edgecode.data.AppRepository
@@ -53,6 +54,7 @@ class AppViewModel(
 
     val connection: StateFlow<ConnectionState> = repository.connection
     val sessions: StateFlow<List<SessionSummary>> = repository.sessions
+    val sessionsLoading: StateFlow<Boolean> = repository.sessionsLoading
     val subagents: StateFlow<List<SessionSummary>> = repository.subagents
     val permissions: StateFlow<List<PermissionRequest>> = repository.permissions
     val questions: StateFlow<List<QuestionRequest>> = repository.questions
@@ -114,33 +116,56 @@ class AppViewModel(
 
     // --- Connection --------------------------------------------------------
 
-    fun connect(url: String, username: String?, password: String?, remember: Boolean) {
+    fun connect(
+        url: String,
+        username: String?,
+        password: String?,
+        remember: Boolean,
+        name: String? = null,
+    ) {
         // A second tap while the first attempt is still connecting used to
         // disconnect the attempt in flight, which surfaced as a failure on the
         // row that was tapped. There is nothing useful to do until it settles.
         if (connectionBusy()) return
         val normalized = normalizeUrl(url)
-        val user = username?.takeIf { it.isNotBlank() }
+        val displayName = name?.trim()?.takeIf { it.isNotBlank() } ?: normalized
+        val user = username?.trim()?.takeIf { it.isNotBlank() }
         val secret = password?.takeIf { it.isNotBlank() }
         if (secret != null) passwords[normalized] = secret
         val profile = ServerProfile(
             id = "profile",
-            name = normalized,
+            name = displayName,
             url = normalized,
             username = user,
             password = secret,
         )
-        val saved = if (remember) rememberServer(normalized, user) else null
+        // Do not save until health succeeds: a mistyped address should not
+        // leave a dead row in the list.
+        val existing = if (remember) connections.find(normalized, user) else null
+        val candidate = if (remember) {
+            SavedConnection(
+                id = existing?.id ?: java.util.UUID.randomUUID().toString(),
+                name = displayName,
+                url = normalized,
+                username = user,
+                lastUsedAt = System.currentTimeMillis(),
+            )
+        } else {
+            null
+        }
         scope.launch {
             repository.connect(profile)
             val state = repository.connection.value
             if (state.isConnected) {
-                saved?.let { connections.markUsed(it.id) }
-                if (remember) settings.saveServer(normalized, normalized, user)
+                if (candidate != null) {
+                    connections.save(candidate)
+                    connections.markUsed(candidate.id)
+                    settings.saveServer(normalized, displayName, user)
+                }
                 _stack.value = listOf(Screen.Sessions)
                 maybeOpenPendingSession()
             } else if (state is ConnectionState.Failed) {
-                saved?.let { connections.touch(it.id, state.message) }
+                existing?.let { connections.touch(it.id, state.message) }
             }
         }
     }
@@ -177,6 +202,68 @@ class AppViewModel(
     }
 
     /**
+     * Checks a server for the form without connecting to it or saving it.
+     */
+    fun testConnection(
+        url: String,
+        username: String?,
+        password: String?,
+        onResult: (Result<ServerInfo>) -> Unit,
+    ) {
+        val normalized = normalizeUrl(url)
+        if (normalized.isBlank()) {
+            onResult(Result.failure(IllegalArgumentException("Enter a server address")))
+            return
+        }
+        val user = username?.trim()?.takeIf { it.isNotBlank() }
+        val secret = password?.takeIf { it.isNotBlank() } ?: passwords[normalized]
+        if (secret != null) passwords[normalized] = secret
+        scope.launch {
+            onResult(
+                repository.testConnection(
+                    ServerProfile(
+                        id = "test",
+                        name = normalized,
+                        url = normalized,
+                        username = user,
+                        password = secret,
+                    ),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Changes the saved record only. Passwords are not part of it; the cached
+     * one is dropped when the endpoint or user changes.
+     */
+    fun updateSavedConnection(id: String, name: String, url: String, username: String?) {
+        val existing = connections.findById(id) ?: return
+        val normalized = normalizeUrl(url)
+        if (normalized.isBlank()) return
+        val user = username?.trim()?.takeIf { it.isNotBlank() }
+        val displayName = name.trim().ifBlank { normalized }
+        connections.save(
+            existing.copy(
+                name = displayName,
+                url = normalized,
+                username = user,
+                lastStatus = null,
+            ),
+        )
+        val active = settings.state.value
+        if (active.hasSavedServer &&
+            active.serverUrl.trimEnd('/').equals(existing.url.trimEnd('/'), ignoreCase = true) &&
+            active.serverUsername.orEmpty() == existing.username.orEmpty()
+        ) {
+            settings.saveServer(normalized, displayName, user)
+        }
+        if (existing.url != normalized || existing.username != user) {
+            passwords.remove(existing.url)
+        }
+    }
+
+    /**
      * Drops the cached password for a saved connection so the next attempt asks
      * for it again. The connection itself stays in the list.
      */
@@ -188,19 +275,6 @@ class AppViewModel(
     fun removeSavedConnection(id: String) {
         forgetSaved(id)
         connections.remove(id)
-    }
-
-    private fun rememberServer(url: String, username: String?): SavedConnection {
-        val existing = connections.find(url, username)
-        val connection = SavedConnection(
-            id = existing?.id ?: java.util.UUID.randomUUID().toString(),
-            name = url,
-            url = url,
-            username = username,
-            lastUsedAt = System.currentTimeMillis(),
-        )
-        connections.save(connection)
-        return connection
     }
 
     fun connectDemo(remember: Boolean = false) {

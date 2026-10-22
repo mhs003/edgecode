@@ -4,6 +4,7 @@ import dev.edgecode.core.model.AgentInfo
 import dev.edgecode.core.model.ApiVersion
 import dev.edgecode.core.model.Attachment
 import dev.edgecode.core.model.ChatMessage
+import dev.edgecode.core.model.ConnectionState
 import dev.edgecode.core.model.ModelInfo
 import dev.edgecode.core.model.ModelRef
 import dev.edgecode.core.model.PermissionDecision
@@ -18,28 +19,24 @@ import dev.edgecode.core.model.ServerProfile
 import dev.edgecode.core.model.SessionSummary
 import dev.edgecode.core.model.SessionStatus
 import dev.edgecode.core.model.SlashCommand
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * The connect path used to wait on its catalogue fetches one after another, so
- * independent round-trips were added together before the session list could
- * appear. These tests pin the two properties that fix depends on.
+ * Connect returns as soon as health succeeds; the catalogue, session list and
+ * pending questions load behind the session screen. These tests pin that split
+ * and the loads it starts.
  */
 class AppRepositoryTest {
 
-    /**
-     * Records how many calls were in flight at once. This is deterministic:
-     * with concurrent fetches all of them suspend before any resumes, so the
-     * peak is the number of calls; run sequentially the peak is always one.
-     */
     private class FakeApi(
         private val latencyMs: Long = 100,
         private val sessionList: List<SessionSummary> = emptyList(),
@@ -47,19 +44,11 @@ class AppRepositoryTest {
         private val questionList: List<QuestionRequest> = emptyList(),
     ) : OpenCodeApi {
 
-        private val inFlight = AtomicInteger(0)
-        private val peak = AtomicInteger(0)
-
-        val peakConcurrency: Int get() = peak.get()
+        /** Lets a test hold the session fetch open and observe the loading state. */
+        var sessionGate: CompletableDeferred<Unit>? = null
 
         private suspend fun <T> call(value: T): T {
-            val now = inFlight.incrementAndGet()
-            peak.updateAndGet { current -> maxOf(current, now) }
-            try {
-                delay(latencyMs)
-            } finally {
-                inFlight.decrementAndGet()
-            }
+            delay(latencyMs)
             return value
         }
 
@@ -69,7 +58,10 @@ class AppRepositoryTest {
             call(ServerInfo(version = "0.0.0-test", healthy = true, api = ApiVersion.V1))
 
         override suspend fun projects(): List<ProjectRef> = call(emptyList())
-        override suspend fun sessions(): List<SessionSummary> = call(sessionList)
+        override suspend fun sessions(): List<SessionSummary> {
+            sessionGate?.await()
+            return call(sessionList)
+        }
 
         override suspend fun sessionStatuses(): Map<String, SessionStatus> = call(statuses)
 
@@ -133,28 +125,35 @@ class AppRepositoryTest {
     }
 
     @Test
-    fun catalogueFetchesOverlapRatherThanSerialising() = runBlocking {
-        val api = FakeApi(latencyMs = 100)
-        var built: OpenCodeApi? = null
-        val repository = AppRepository(this) { _, _ -> built = api; api }
+    fun testingAConnectionLeavesTheActiveOneAlone() = runBlocking {
+        val api = FakeApi(latencyMs = 1)
+        val repository = AppRepository(this) { _, _ -> api }
 
-        val started = System.nanoTime()
+        val result = repository.testConnection(
+            ServerProfile("test", "test", "http://localhost:4096"),
+        )
+
+        assertTrue(result.isSuccess)
+        assertTrue(repository.connection.value is ConnectionState.Disconnected)
+    }
+
+    @Test
+    fun connectReturnsBeforeTheSessionListArrives() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val root = SessionSummary("root", "Root", "/", 0L, 0L)
+        val api = FakeApi(latencyMs = 1, sessionList = listOf(root)).apply {
+            sessionGate = gate
+        }
+        val repository = AppRepository(this) { _, _ -> api }
+
         repository.connect(ServerProfile("t", "test", "http://localhost:4096"))
-        val elapsedMs = (System.nanoTime() - started) / 1_000_000
 
-        assertNotNull(built)
-        // Four 100ms catalogue fetches. Overlapped, connect costs
-        // health(100) + catalogue(100) + sessions(100) ≈ 300ms; serialised it
-        // would cost 100 + 400 + 100 = 600ms.
-        assertEquals(
-            "catalogue fetches should all be in flight at once",
-            4,
-            api.peakConcurrency,
-        )
-        assertTrue(
-            "connect took ${elapsedMs}ms; serialised catalogue fetches would take ~600ms",
-            elapsedMs < 500,
-        )
+        assertTrue(repository.connection.value.isConnected)
+        assertTrue(repository.sessions.value.isEmpty())
+
+        gate.complete(Unit)
+        withTimeout(2_000) { repository.sessions.first { it.isNotEmpty() } }
+        assertEquals(listOf("root"), repository.sessions.value.map { it.id })
     }
 
     @Test
@@ -165,6 +164,7 @@ class AppRepositoryTest {
         repository.connect(ServerProfile("t", "test", "http://localhost:4096"))
 
         assertTrue(repository.connection.value.isConnected)
+        withTimeout(2_000) { repository.sessionsLoading.first { !it } }
         assertTrue(repository.sessions.value.isEmpty())
     }
 
@@ -181,6 +181,7 @@ class AppRepositoryTest {
 
         repository.connect(ServerProfile("t", "test", "http://localhost:4096"))
 
+        withTimeout(2_000) { repository.sessions.first { it.isNotEmpty() } }
         assertEquals(listOf("root"), repository.sessions.value.map { it.id })
         assertEquals(listOf("child"), repository.subagents.value.map { it.id })
     }
@@ -198,6 +199,9 @@ class AppRepositoryTest {
 
         repository.connect(ServerProfile("t", "test", "http://localhost:4096"))
 
+        withTimeout(2_000) {
+            repository.sessions.first { it.singleOrNull()?.status == SessionStatus.Working }
+        }
         assertEquals(SessionStatus.Working, repository.sessions.value.single().status)
     }
 
@@ -219,6 +223,7 @@ class AppRepositoryTest {
 
         repository.connect(ServerProfile("t", "test", "http://localhost:4096"))
 
+        withTimeout(2_000) { repository.questions.first { it.isNotEmpty() } }
         assertEquals(listOf(request), repository.questions.value)
     }
 }

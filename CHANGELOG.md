@@ -10,6 +10,32 @@ release workflow uses the section below as the release notes.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-22
+
+### Added
+
+- Every three-dot control now opens a bottom sheet, with the context it applies
+  to above the actions: the session menu, a session row's actions, the chat's
+  overflow, and a saved connection's actions.
+- Saved connections can be edited: name, server address and username. Passwords
+  remain memory-only and are never stored.
+- The new-connection form has an optional display name, used for the saved row
+  and the connection banner.
+- The connection form has a **Test connection** action beside Connect (and
+  beside Save when editing) that checks the server without connecting or
+  saving. Connect still checks health itself when Test is skipped.
+- A separator now sets the demo entry apart from the saved servers and the
+  connection form.
+
+### Fixed
+
+- A new connection is saved only after its health check succeeds, so a mistyped
+  address no longer leaves a dead row behind.
+- The session screen appears as soon as the health check succeeds, instead of
+  waiting for the catalogue, session list and pending questions. Those load in
+  the background, and the list shows its loading state rather than "No
+  sessions yet" while the fetch is running.
+
 ## [1.1.1] - 2026-10-22
 
 ### Fixed

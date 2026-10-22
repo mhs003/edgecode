@@ -68,9 +68,16 @@ swapped without touching a single screen.
 ## Data flow
 
 **Connect.** `ConnectScreen` → `AppViewModel.connect` → `AppRepository.connect`
-→ `OpenCodeApi.health()`. Only on success is the profile persisted and the
-navigation stack replaced with Sessions. On failure the `ConnectionState.Failed`
-carries the message the banner shows.
+→ `OpenCodeApi.health()`. Health is the connection: on success the navigation
+stack is replaced with Sessions immediately, and the catalogue, session list and
+pending questions load behind it. The list shows its loading state until
+`refreshSessions` returns, so an empty list never reads as "no sessions" while a
+fetch is still running. The saved record is written only after that health check
+passes, so a mistyped address does not become a row. On failure the
+`ConnectionState.Failed` carries the message the banner shows. The form's
+**Test connection** action runs the same health check through
+`AppRepository.testConnection` without touching the active connection or saving
+anything.
 
 **Open a session.** `openSession` pushes the Chat destination immediately and
 starts a REST fetch in the background; the screen shows its loading state until
@@ -194,6 +201,8 @@ The replacement keeps the useful half of that property explicitly:
 | 22 | The answered exchange is rendered from the tool part | `state.input.questions` and `state.metadata.answers` are the server's durable record, so the transcript shows the prompts and chosen labels after the call settles and across restarts. Rejected: keeping only the transient `question.*` events, which are lost on reconnect |
 | 23 | Tool input can wrap on demand | A long command or JSON payload is easier to read wrapped than horizontally scrolled. The input block gets a wrap toggle beside copy; fenced code keeps horizontal scroll |
 | 24 | The catalogue reads `/config/providers`, not `/provider` | The full registry is measured in megabytes and lists every provider the server knows, most of them unconfigured. The configured subset is what the picker offers, and it is parsed off the main thread so the session list is not held behind it |
+| 25 | Three-dot actions live in a bottom sheet | A dropdown anchored to a corner control puts a small card at the edge of the screen and gives no room to say what the actions apply to. A sheet is at thumb height and its header can carry the session, server or connection in question |
+| 26 | A saved connection waits for health | Saving on tap made a mistyped address look like a real saved server and then recorded its failure. Health is already the line between connected and not, so it is also the line between saved and not. Test reuses it without side effects |
 
 ## Invariants
 

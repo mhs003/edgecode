@@ -13,6 +13,7 @@ import dev.edgecode.core.model.ProviderInfo
 import dev.edgecode.core.model.QuestionRequest
 import dev.edgecode.core.model.ServerProfile
 import dev.edgecode.core.model.ServerEvent
+import dev.edgecode.core.model.ServerInfo
 import dev.edgecode.core.model.SessionSummary
 import dev.edgecode.core.model.SlashCommand
 import dev.edgecode.data.demo.DemoOpenCodeApi
@@ -130,6 +131,7 @@ class AppRepository(
 
     private var api: OpenCodeApi? = null
     private var eventJob: Job? = null
+    private var loadJob: Job? = null
 
     private val _connection = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val connection: StateFlow<ConnectionState> = _connection.asStateFlow()
@@ -146,6 +148,14 @@ class AppRepository(
 
     private val _subagents = MutableStateFlow<List<SessionSummary>>(emptyList())
     val subagents: StateFlow<List<SessionSummary>> = _subagents.asStateFlow()
+
+    /**
+     * Whether the session list is still being fetched. The screen is reachable
+     * as soon as health succeeds, so it needs to distinguish "loading" from
+     * "the server really has no sessions".
+     */
+    private val _sessionsLoading = MutableStateFlow(false)
+    val sessionsLoading: StateFlow<Boolean> = _sessionsLoading.asStateFlow()
 
     /** Splits one fetched or event-updated list into the two views the UI reads. */
     private fun publishSessions(all: List<SessionSummary>) {
@@ -197,12 +207,18 @@ class AppRepository(
             val info = client.health()
             _connection.value = ConnectionState.Connected(profile, info)
             startEventStream(client)
-            loadCatalog(client)
-            // Sessions and pending questions are independent, so they overlap
-            // rather than adding another round-trip to the connect path.
-            coroutineScope {
-                launch { refreshSessions() }
-                launch { refreshQuestions() }
+
+            // Health is the connection. The catalogue, session list and pending
+            // questions follow in the background so the screen changes as soon
+            // as the server answers, rather than after every fetch.
+            _sessionsLoading.value = true
+            loadJob?.cancel()
+            loadJob = scope.launch {
+                coroutineScope {
+                    launch { loadCatalog(client) }
+                    launch { refreshSessions() }
+                    launch { refreshQuestions() }
+                }
             }
         } catch (cancellation: CancellationException) {
             // Leaving the screen, a config change or an app update cancels the
@@ -215,6 +231,23 @@ class AppRepository(
                 t.message ?: "Could not reach the server",
             )
             api = null
+        }
+    }
+
+    /**
+     * Checks a server without touching the active connection or saving
+     * anything. Used by the form's Test action.
+     */
+    suspend fun testConnection(profile: ServerProfile): Result<ServerInfo> {
+        val client = apiFactory(scope, profile)
+        return try {
+            Result.success(client.health())
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (t: Throwable) {
+            Result.failure(t)
+        } finally {
+            runCatching { client.close() }
         }
     }
 
@@ -235,9 +268,12 @@ class AppRepository(
     fun disconnect() {
         eventJob?.cancel()
         eventJob = null
+        loadJob?.cancel()
+        loadJob = null
         scope.launch { api?.close() }
         api = null
         _connection.value = ConnectionState.Disconnected
+        _sessionsLoading.value = false
         publishSessions(emptyList())
         _permissions.value = emptyList()
         _questions.value = emptyList()
@@ -319,17 +355,25 @@ class AppRepository(
     // --- Sessions ----------------------------------------------------------
 
     suspend fun refreshSessions() {
-        val client = api ?: return
-        val fetched = runCatching { client.sessions() }.getOrNull() ?: return
-        // Status is the one thing a session payload does not carry. Merging it
-        // here is what makes the list correct on entry, rather than only after
-        // the next `session.status` event — and the event stream is lossy.
-        val statuses = runCatching { client.sessionStatuses() }.getOrDefault(emptyMap())
-        publishSessions(
-            fetched.map { session ->
-                statuses[session.id]?.let { session.copy(status = it) } ?: session
-            },
-        )
+        val client = api ?: run {
+            _sessionsLoading.value = false
+            return
+        }
+        _sessionsLoading.value = true
+        try {
+            val fetched = runCatching { client.sessions() }.getOrNull() ?: return
+            // Status is the one thing a session payload does not carry. Merging
+            // it here is what makes the list correct on entry, rather than only
+            // after the next `session.status` event — and the stream is lossy.
+            val statuses = runCatching { client.sessionStatuses() }.getOrDefault(emptyMap())
+            publishSessions(
+                fetched.map { session ->
+                    statuses[session.id]?.let { session.copy(status = it) } ?: session
+                },
+            )
+        } finally {
+            _sessionsLoading.value = false
+        }
     }
 
     /**

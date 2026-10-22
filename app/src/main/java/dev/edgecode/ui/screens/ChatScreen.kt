@@ -28,10 +28,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -69,7 +66,9 @@ import dev.edgecode.core.design.components.CircleButton
 import dev.edgecode.core.design.components.EmptyState
 import dev.edgecode.core.design.components.ErrorNotice
 import dev.edgecode.core.design.components.InlineProgress
+import dev.edgecode.core.design.components.ActionSheet
 import dev.edgecode.core.design.components.SheetHeader
+import dev.edgecode.core.design.components.SheetAction
 import dev.edgecode.core.design.components.bottomSystemInset
 import dev.edgecode.core.design.components.tappable
 import dev.edgecode.core.design.components.topSystemInset
@@ -320,6 +319,21 @@ fun ChatScreen(
     val contextUsed = session?.tokens?.contextUsed ?: 0
     val contextLimit = servingModel?.contextLimit ?: 0
     val contextPercent = if (contextLimit > 0) contextUsed.toFloat() / contextLimit else 0f
+    val sessionMenuSubtitle = buildList {
+        session?.directory?.let { add(it) }
+        val stats = buildList {
+            val tokens = session?.tokens?.total ?: 0
+            val cost = session?.cost ?: 0.0
+            val additions = session?.additions ?: 0
+            val deletions = session?.deletions ?: 0
+            if (tokens > 0) add("${formatTokens(tokens)} tok")
+            if (cost > 0) add(formatCost(cost))
+            if (contextPercent > 0f) add("${(contextPercent * 100).toInt()}% ctx")
+            if (additions > 0) add("+$additions")
+            if (deletions > 0) add("−$deletions")
+        }
+        if (stats.isNotEmpty()) add(stats.joinToString(" · "))
+    }.joinToString("\n")
 
     // One Box, no bands. The transcript fills the whole surface and both bars
     // float over it, so the conversation runs edge to edge and stays visible in
@@ -476,26 +490,11 @@ fun ChatScreen(
                         onClick = { viewModel.back() },
                     )
                     Spacer(Modifier.width(Space.sm))
-                    Box {
-                        CircleButton(
-                            icon = EdgeIcons.More,
-                            contentDescription = "Session menu",
-                            onClick = { menuOpen = true },
-                        )
-                        SessionMenu(
-                            expanded = menuOpen,
-                            onDismiss = { menuOpen = false },
-                            directory = session?.directory,
-                            tokens = session?.tokens?.total ?: 0,
-                            cost = session?.cost ?: 0.0,
-                            additions = session?.additions ?: 0,
-                            deletions = session?.deletions ?: 0,
-                            contextPercent = contextPercent,
-                            onNewSession = { menuOpen = false; viewModel.back() },
-                            onSettings = { menuOpen = false; viewModel.openSettings() },
-                            onDelete = { menuOpen = false; viewModel.deleteSession(sessionId) },
-                        )
-                    }
+                    CircleButton(
+                        icon = EdgeIcons.More,
+                        contentDescription = "Session menu",
+                        onClick = { menuOpen = true },
+                    )
                 }
             }
 
@@ -622,6 +621,21 @@ fun ChatScreen(
                 showAgents = false
             },
             onDismiss = { showAgents = false },
+        )
+    }
+
+    if (menuOpen) {
+        ActionSheet(
+            title = session?.title ?: "Session",
+            subtitle = sessionMenuSubtitle.ifBlank { null },
+            onDismiss = { menuOpen = false },
+            actions = listOf(
+                SheetAction("New session", EdgeIcons.Plus) { viewModel.back() },
+                SheetAction("Settings", EdgeIcons.Settings) { viewModel.openSettings() },
+                SheetAction("Delete session", EdgeIcons.Trash, destructive = true) {
+                    viewModel.deleteSession(sessionId)
+                },
+            ),
         )
     }
 
@@ -770,69 +784,6 @@ private fun ContextChip(percent: Float) {
             text = "${(percent * 100).toInt()}%",
             style = MaterialTheme.typography.labelSmall,
             color = edge.warning,
-        )
-    }
-}
-
-/**
- * Session facts and session actions, kept out of the transcript. The statistics
- * describe the whole session, so they belong behind a deliberate tap rather than
- * repeated under every reply.
- */
-@Composable
-private fun SessionMenu(
-    expanded: Boolean,
-    onDismiss: () -> Unit,
-    directory: String?,
-    tokens: Int,
-    cost: Double,
-    additions: Int,
-    deletions: Int,
-    contextPercent: Float,
-    onNewSession: () -> Unit,
-    onSettings: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    val scheme = MaterialTheme.colorScheme
-    val edge = LocalEdgeColors.current
-
-    val stats = buildList {
-        if (tokens > 0) add("${formatTokens(tokens)} tok")
-        if (cost > 0) add(formatCost(cost))
-        if (contextPercent > 0f) add("${(contextPercent * 100).toInt()}% ctx")
-        if (additions > 0) add("+$additions")
-        if (deletions > 0) add("−$deletions")
-    }
-
-    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.padding(horizontal = Space.lg, vertical = Space.sm)) {
-            if (directory != null) {
-                Text(
-                    text = directory,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = edge.faint,
-                )
-            }
-            if (stats.isNotEmpty()) {
-                Text(
-                    text = stats.joinToString(" · "),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = scheme.onSurfaceVariant,
-                )
-            }
-        }
-        HorizontalDivider(color = scheme.outlineVariant)
-        DropdownMenuItem(
-            text = { Text("New session") },
-            onClick = onNewSession,
-        )
-        DropdownMenuItem(
-            text = { Text("Settings") },
-            onClick = onSettings,
-        )
-        DropdownMenuItem(
-            text = { Text("Delete session", color = scheme.error) },
-            onClick = onDelete,
         )
     }
 }

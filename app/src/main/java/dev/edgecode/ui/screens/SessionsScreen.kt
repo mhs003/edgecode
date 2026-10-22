@@ -17,8 +17,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -46,6 +44,7 @@ import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
+import dev.edgecode.core.design.components.ActionSheet
 import dev.edgecode.core.design.components.Chip
 import dev.edgecode.core.design.components.EdgeButton
 import dev.edgecode.core.design.components.EdgeTextField
@@ -58,6 +57,7 @@ import dev.edgecode.core.design.components.IconAction
 import dev.edgecode.core.design.components.InlineProgress
 import dev.edgecode.core.design.components.RowDivider
 import dev.edgecode.core.design.components.Section
+import dev.edgecode.core.design.components.SheetAction
 import dev.edgecode.core.design.components.SettingsRow
 import dev.edgecode.core.design.components.StatusDot
 import dev.edgecode.core.design.components.bottomSystemInset
@@ -82,6 +82,7 @@ fun SessionsScreen(
     val edge = LocalEdgeColors.current
     val connection by viewModel.connection.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
+    val sessionsLoading by viewModel.sessionsLoading.collectAsState()
     val questions by viewModel.questions.collectAsState()
     val catalog by viewModel.catalog.collectAsState()
 
@@ -90,6 +91,7 @@ fun SessionsScreen(
     var menuOpen by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<SessionSummary?>(null) }
     var deleting by remember { mutableStateOf<SessionSummary?>(null) }
+    var actionSession by remember { mutableStateOf<SessionSummary?>(null) }
     var creating by remember { mutableStateOf(false) }
 
     val filtered = remember(sessions, query) {
@@ -139,23 +141,11 @@ fun SessionsScreen(
                         onClick = { creating = true },
                     )
                     Spacer(Modifier.width(Space.sm))
-                    Box {
-                        CircleButton(
-                            icon = EdgeIcons.More,
-                            contentDescription = "More",
-                            onClick = { menuOpen = true },
-                        )
-                        SessionsMenu(
-                            expanded = menuOpen,
-                            onDismiss = { menuOpen = false },
-                            serverUrl = (connection as? ConnectionState.Connected)?.profile?.url,
-                            sessionCount = sessions.size,
-                            onNewSession = { menuOpen = false; creating = true },
-                            onRefresh = { menuOpen = false; viewModel.refresh() },
-                            onSettings = { menuOpen = false; viewModel.openSettings() },
-                            onDisconnect = { menuOpen = false; viewModel.disconnect() },
-                        )
-                    }
+                    CircleButton(
+                        icon = EdgeIcons.More,
+                        contentDescription = "More",
+                        onClick = { menuOpen = true },
+                    )
                 },
             )
         }
@@ -167,19 +157,23 @@ fun SessionsScreen(
 
         if (sessions.isEmpty()) {
             Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                EmptyState(
-                    title = "No sessions yet",
-                    message = "Sessions live on the server. Start one here and it will " +
-                        "appear in the OpenCode TUI too.",
-                    icon = EdgeIcons.Terminal,
-                    action = {
-                        EdgeButton(
-                            text = "New session",
-                            icon = EdgeIcons.Plus,
-                            onClick = { creating = true },
-                        )
-                    },
-                )
+                if (sessionsLoading) {
+                    InlineProgress("Loading sessions")
+                } else {
+                    EmptyState(
+                        title = "No sessions yet",
+                        message = "Sessions live on the server. Start one here and it will " +
+                            "appear in the OpenCode TUI too.",
+                        icon = EdgeIcons.Terminal,
+                        action = {
+                            EdgeButton(
+                                text = "New session",
+                                icon = EdgeIcons.Plus,
+                                onClick = { creating = true },
+                            )
+                        },
+                    )
+                }
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
@@ -192,8 +186,7 @@ fun SessionsScreen(
                             session = session,
                             hasQuestion = session.id in questionSessions,
                             onOpen = { viewModel.openSession(session.id) },
-                            onRename = { renaming = session },
-                            onDelete = { deleting = session },
+                            onActions = { actionSession = session },
                         )
                     }
                 }
@@ -204,14 +197,43 @@ fun SessionsScreen(
                             session = session,
                             hasQuestion = session.id in questionSessions,
                             onOpen = { viewModel.openSession(session.id) },
-                            onRename = { renaming = session },
-                            onDelete = { deleting = session },
+                            onActions = { actionSession = session },
                         )
                     }
                 }
                 item { Spacer(Modifier.height(Space.xxxl)) }
             }
         }
+    }
+
+    if (menuOpen) {
+        ActionSheet(
+            title = (connection as? ConnectionState.Connected)?.profile?.url ?: "Local demo",
+            subtitle = if (sessions.size == 1) "1 session" else "${sessions.size} sessions",
+            onDismiss = { menuOpen = false },
+            actions = listOf(
+                SheetAction("New session", EdgeIcons.Plus) { creating = true },
+                SheetAction("Refresh", EdgeIcons.Refresh) { viewModel.refresh() },
+                SheetAction("Settings", EdgeIcons.Settings) { viewModel.openSettings() },
+                SheetAction("Disconnect", EdgeIcons.Server, destructive = true) {
+                    viewModel.disconnect()
+                },
+            ),
+        )
+    }
+
+    actionSession?.let { session ->
+        ActionSheet(
+            title = "Session actions",
+            subtitle = session.title,
+            onDismiss = { actionSession = null },
+            actions = listOf(
+                SheetAction("Rename", EdgeIcons.Edit) { renaming = session },
+                SheetAction("Delete", EdgeIcons.Trash, destructive = true) {
+                    deleting = session
+                },
+            ),
+        )
     }
 
     if (creating) {
@@ -263,86 +285,6 @@ fun SessionsScreen(
             },
         )
     }
-}
-
-/**
- * Overflow menu.
- *
- * The old one listed three verbs with no context. This states what you are
- * connected to and how much is there before offering the actions, so the menu
- * answers "what am I looking at" as well as "what can I do".
- */
-@Composable
-private fun SessionsMenu(
-    expanded: Boolean,
-    onDismiss: () -> Unit,
-    serverUrl: String?,
-    sessionCount: Int,
-    onNewSession: () -> Unit,
-    onRefresh: () -> Unit,
-    onSettings: () -> Unit,
-    onDisconnect: () -> Unit,
-) {
-    val scheme = MaterialTheme.colorScheme
-    val edge = LocalEdgeColors.current
-
-    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.padding(horizontal = Space.lg, vertical = Space.sm)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Space.xs),
-            ) {
-                StatusDot(scheme.primary)
-                Text(
-                    text = serverUrl ?: "Local demo",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = scheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Text(
-                text = if (sessionCount == 1) "1 session" else "$sessionCount sessions",
-                style = MaterialTheme.typography.labelSmall,
-                color = edge.faint,
-            )
-        }
-        HorizontalDivider(color = scheme.outlineVariant)
-
-        DropdownMenuItem(
-            text = { Text("New session") },
-            leadingIcon = { MenuIcon(EdgeIcons.Plus) },
-            onClick = onNewSession,
-        )
-        DropdownMenuItem(
-            text = { Text("Refresh") },
-            leadingIcon = { MenuIcon(EdgeIcons.Refresh) },
-            onClick = onRefresh,
-        )
-        DropdownMenuItem(
-            text = { Text("Settings") },
-            leadingIcon = { MenuIcon(EdgeIcons.Settings) },
-            onClick = onSettings,
-        )
-
-        HorizontalDivider(color = scheme.outlineVariant)
-
-        DropdownMenuItem(
-            text = { Text("Disconnect", color = scheme.error) },
-            leadingIcon = { MenuIcon(EdgeIcons.Server, tint = scheme.error) },
-            onClick = onDisconnect,
-        )
-    }
-}
-
-@Composable
-private fun MenuIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color? = null) {
-    Icon(
-        imageVector = icon,
-        contentDescription = null,
-        tint = tint ?: LocalEdgeColors.current.faint,
-        modifier = Modifier.size(Size.icon),
-    )
 }
 
 @Composable
@@ -437,12 +379,10 @@ private fun SessionRow(
     session: SessionSummary,
     hasQuestion: Boolean,
     onOpen: () -> Unit,
-    onRename: () -> Unit,
-    onDelete: () -> Unit,
+    onActions: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     val edge = LocalEdgeColors.current
-    var menu by remember { mutableStateOf(false) }
 
     // Status is carried by the title's weight of colour rather than by a dot:
     // a dot per row is a column of noise when almost every row is idle.
@@ -512,25 +452,13 @@ private fun SessionRow(
             }
         }
 
-        Box {
-            IconAction(
-                icon = EdgeIcons.More,
-                contentDescription = "Session actions",
-                onClick = { menu = true },
-                size = Size.touchSm,
-                iconSize = Size.iconSm,
-            )
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(
-                    text = { Text("Rename") },
-                    onClick = { menu = false; onRename() },
-                )
-                DropdownMenuItem(
-                    text = { Text("Delete", color = scheme.error) },
-                    onClick = { menu = false; onDelete() },
-                )
-            }
-        }
+        IconAction(
+            icon = EdgeIcons.More,
+            contentDescription = "Session actions",
+            onClick = onActions,
+            size = Size.touchSm,
+            iconSize = Size.iconSm,
+        )
     }
 }
 

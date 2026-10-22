@@ -86,6 +86,10 @@ app/src/main/java/dev/edgecode/
 - **Streaming is a delta channel, never the truth.** The v1 server documents its
   event stream as lossy. Any new state that arrives by event must also be
   derivable from a REST fetch.
+- **Health is the connection; the session list loads behind it.** `connect`
+  returns after `health()` and starts the catalogue, session list and pending
+  questions in the background. The sessions screen must show its loading state
+  until the session fetch finishes, never the empty state.
 - **A subagent is a branch, not a chat.** A `task` call creates an ordinary
   session with a `parentId`. Keep those out of the session list: the chat that
   spawned it reaches it from the call and from the header chip, and opens it
@@ -127,6 +131,12 @@ Current chat clients render one canvas with one fill. Match that.
   whole belongs in the overflow menu.
 - **Circular controls come from `CircleButton`.** Do not hand-roll a
   `Box` + `clip` + `background` circle.
+- **Overflow actions are sheets.** A three-dot control opens `ActionSheet` at
+  thumb height with the thing it applies to in the header. Do not reach for a
+  `DropdownMenu`.
+- **New and saved connections share the same fields and Test/Connect
+  behavior.** Test checks health without connecting or saving; Connect/Save
+  persists only after the check succeeds. Passwords stay memory-only.
 - **Every inset has one owner per screen.** They are additive; two owners means
   content pushed off the window with the keyboard open.
 - **At most one `weight`ed child per `Row`.** Unweighted siblings measure first
@@ -157,6 +167,10 @@ Current chat clients render one canvas with one fill. Match that.
   `GET /session/status` are the live and REST sources, and the REST map omits
   idle sessions. `time.compacting` is the only in-payload working hint. Mapping
   neither leaves every row looking idle.
+- **A new connection is saved only after health succeeds.** A failed attempt
+  must not leave a dead row in the saved list; an existing row may record its
+  last failure. `Test connection` uses the same health check without touching
+  the active connection.
 - **A question is a blocking request, not a permission.** `question.asked`
   carries an array of `QuestionInfo`; answers are arrays of selected labels in
   the same order, and `custom` contributes a free-text label. Reply to
