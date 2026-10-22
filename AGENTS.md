@@ -11,7 +11,9 @@ selection, attachments.
 
 `DESIGN.md` is the binding visual standard. `ARCHITECTURE.md` explains why the
 code is shaped the way it is. `PLAN.md` is the delivery plan and the API notes.
-Read all three before non-trivial changes.
+`DESIGN-HISTORY.md` keeps superseded design decisions, the taste notes behind
+them, and the current critique of the interface. Read all four before
+non-trivial changes; the first three are authoritative, the last is reference.
 
 **Current state:** the UI is complete and the app talks to a real OpenCode v1
 server. `data/net/HttpOpenCodeApi` is the live client; `DemoOpenCodeApi` remains
@@ -41,8 +43,8 @@ app/src/main/java/dev/edgecode/
 ├── core/
 │   ├── design/              tokens, theme, icons, and reusable components
 │   ├── markdown/            CommonMark subset parser, inline spans, highlighter
-│   ├── model/               domain types — the only types the UI knows
-│   └── util/                formatting, diffs, clipboard, image decoding
+│   ├── model/               domain types — the UI never sees wire types
+│   └── util/                format, diff, fuzzy, Json, clipboard, images
 ├── data/
 │   ├── OpenCodeApi.kt       the API seam + ChatReducer (pure)
 │   ├── AppRepository.kt     state, event reduction, actions
@@ -61,11 +63,14 @@ app/src/main/java/dev/edgecode/
 
 - **One Gradle module, on purpose.** Splitting into modules multiplies on-device
   build time for no benefit at this size. Enforce boundaries with packages.
-- **The UI only sees `core/model`.** Nothing above `data/` may reference a wire
-  format. All server interaction goes through `OpenCodeApi`.
+- **The UI sees domain types, never wire types.** Screens read `core/model` and
+  the repository's state types (`Catalog`, `SessionChatState`, `Settings`,
+  `SavedConnection`), but nothing above `data/` may reference a wire format. All
+  server interaction goes through `OpenCodeApi`.
 - **Keep pure logic pure.** `ChatReducer`, `Markdown`, `SyntaxHighlighter`,
-  `Diff` and `core/util/Format` must stay free of Android and coroutine types so
-  they are unit-testable on the JVM. That is where the real complexity lives.
+  `Diff`, `Format`, `Fuzzy`, `Json`, `Sse` and `OpenCodeWire` must stay free of
+  Android and coroutine types so they are unit-testable on the JVM. That is
+  where the real complexity lives.
 - **Protocol logic belongs in a pure function.** `Json`, `Sse` and
   `OpenCodeWire` hold every decision about the wire format and are tested on the
   JVM against captured server responses. `Transport` and `HttpOpenCodeApi` are
@@ -147,8 +152,9 @@ Current chat clients render one canvas with one fill. Match that.
 - `material-icons-core` is not guaranteed to come with Material 3 — assume
   `Icons.Default.*` may not resolve and use `EdgeIcons`.
 - **A session payload carries no status.** `session.status` events and
-  `GET /session/status` are the only sources, and the REST map omits idle
-  sessions. Mapping neither leaves every row looking idle.
+  `GET /session/status` are the live and REST sources, and the REST map omits
+  idle sessions. `time.compacting` is the only in-payload working hint. Mapping
+  neither leaves every row looking idle.
 
 ## Commits
 

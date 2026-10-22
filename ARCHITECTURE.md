@@ -31,7 +31,7 @@ graph TD
     DEMO["data/demo — DemoOpenCodeApi + fixtures"]
     DESIGN["core/design — tokens, theme, icons, components"]
     MD["core/markdown — parser, inline, highlighter"]
-    UTIL["core/util — format, diff, clipboard, images, Json"]
+    UTIL["core/util — format, diff, fuzzy, images, Json"]
 
     UI --> MODEL
     UI --> DESIGN
@@ -55,7 +55,7 @@ swapped without touching a single screen.
 | `core/model` | `SessionSummary`, `ChatMessage`, `Part`, `ToolState`, `PermissionRequest`, `ServerEvent`, … |
 | `core/design` | Colour, typography, spacing, radius and motion tokens; `EdgeTheme`; `EdgeIcons`; shared components |
 | `core/markdown` | `Markdown.parse` → blocks, `renderInline` → `AnnotatedString`, `SyntaxHighlighter` |
-| `core/util` | Formatting, unified-diff parsing, clipboard, bitmap decoding, and `Json` |
+| `core/util` | Formatting, unified-diff parsing, fuzzy matching, clipboard, bitmap decoding, and `Json` |
 | `data/OpenCodeApi` | The API seam and `ChatReducer` (pure event reduction) |
 | `data/AppRepository` | Owns the API, subscribes to events, exposes `StateFlow`s, performs actions |
 | `data/ConnectionsStore` | Saved servers, with the list rules as a pure `Connections` object |
@@ -71,10 +71,11 @@ swapped without touching a single screen.
 navigation stack replaced with Sessions. On failure the `ConnectionState.Failed`
 carries the message the banner shows.
 
-**Open a session.** `openSession(id)` marks the chat state loading, fetches
-`OpenCodeApi.messages(id)`, then pushes the Chat destination. Because the fetch
-is a plain list, re-entering a session re-fetches rather than trusting whatever
-the event stream happened to deliver.
+**Open a session.** `openSession` pushes the Chat destination immediately and
+starts a REST fetch in the background; the screen shows its loading state until
+`OpenCodeApi.messages(id)` returns. The first open of a chat fetches its
+transcript; later opens reuse the in-memory copy, which the event stream keeps
+current.
 
 **Open a subagent.** A `task` part names the child session it spawned in its
 metadata, so the transcript links to it, and the header chip lists every child
@@ -83,18 +84,25 @@ destination in a read-only mode: the conversation is driven by the agent that
 spawned it, so there is no composer.
 
 **Send.** `Composer` → `AppViewModel.send` → `AppRepository.sendPrompt`. The
-optimistic user message is not constructed locally: the API emits
-`ServerEvent.MessageUpserted`, which is reduced into state by the same path a
-remote event would take. Local and remote behaviour are identical by design.
+repository appends a user message carrying a client-generated `msg_…` id and
+marks the chat working, then posts `prompt_async` with that id. The server keeps
+the id, so its echo arrives as `MessageUpserted` and merges onto the same row
+rather than duplicating it. A failed request removes the optimistic row and
+records the error. The demo reaches the same state through the same events.
 
-**Stream.** `DemoOpenCodeApi` plays a script: reasoning, then text, then tool
-calls, emitting `PartUpserted` for the same part id as content grows. The
-transcript keys `LazyColumn` items by message id, and parts are replaced in
-place by id, so a token arriving does not rebuild the list.
+**Stream.** The live client collects `GET /event` over SSE and maps each frame
+through `OpenCodeWire.event`; unmatched types are dropped. A reply arrives as an
+empty part, then one `message.part.delta` per slice, then the whole part again
+at the end. Deltas append in place and the final frame replaces the part, which
+is self-correcting. `DemoOpenCodeApi` plays an equivalent script. The transcript
+keys `LazyColumn` items by message id, and parts are replaced in place by id, so
+a token arriving does not rebuild the list.
 
-**Approve.** A scripted step emits `PermissionRequested` and then *suspends* on a
-`CompletableDeferred` until `respondPermission` completes it. The sheet is
-therefore a real blocking round-trip, not a mocked animation.
+**Approve.** A `permission.asked` event becomes `PermissionRequested`, which the
+sheet renders against the session. `respondPermission` posts the decision to
+`/permission/{id}/reply`, and the card is removed optimistically. The demo models
+the same round trip by suspending on a `CompletableDeferred` until the reply
+arrives, so the flow is exercised without a server.
 
 ## State model
 
@@ -104,8 +112,10 @@ therefore a real blocking round-trip, not a mocked animation.
   session carrying a `parentId`, so `sessions` (roots) and `subagents` (children)
   are split in the repository rather than filtered in a screen: a chat's children
   must stay reachable precisely because they are not chats of their own.
-- All mutation of that state goes through `ChatReducer`, a set of pure functions
-  `(State, ServerEvent) -> State`.
+- Message, session and permission lists are mutated by `ChatReducer`, a set of
+  pure functions `(State, ServerEvent) -> State`. Transport-level state —
+  loading, errors, the working flag, optimistic sends and permission removal —
+  is written directly by `AppRepository`.
 - `ChatReducer` has no Android or coroutine types. The bulk of the app's real
   complexity — merging streaming parts, reconciling a stale frame — is therefore
   testable on the JVM without a device.
@@ -146,24 +156,27 @@ The replacement keeps the useful half of that property explicitly:
 | 3 | Hand-authored `EdgeIcons` | `material-icons-extended` is ~35k generated classes to dex on a device with ~1.5 GB RAM. A 24dp grid, 1.8dp stroke and round caps also yields a more consistent icon voice than a mixed pack |
 | 4 | Hand-rolled navigation stack | Four destinations, one-line back behaviour. Avoids a dependency and keeps transitions under our control |
 | 5 | No image loading library | Attachments are a small bounded set, never loaded from the network; `ImageDecoder`/`BitmapFactory` with bounds sampling is ~60 lines |
-| 6 | Manual DI | The object graph is a ViewModel, a repository and a settings store. A framework would obscure it |
-| 7 | `SharedPreferences`, not DataStore | Settings are six scalars read once at startup; DataStore's flow machinery earns nothing here. Passwords are deliberately *not* persisted |
+| 6 | Manual DI | The object graph is a ViewModel, a repository and two preference stores. A framework would obscure it |
+| 7 | `SharedPreferences`, not DataStore | Settings and saved servers are a handful of values read once at startup; DataStore's flow machinery earns nothing here. Passwords are deliberately *not* persisted |
 | 8 | Dark is the default theme | Matches the reference clients and how the app is used; light and follow-system are one tap away in Settings |
-| 9 | API seam is an interface, not a client | The demo and the future v1 client implement the same `OpenCodeApi`, so the UI cannot tell them apart — except for the "Sample data" chip |
-| 10 | Optimistic writes go through the event stream | Guarantees the local and remote paths are exercised identically, which is what makes the demo a real test of the UI |
+| 9 | API seam is an interface, not a client | The demo and the shipped v1 client implement the same `OpenCodeApi`, so the UI cannot tell them apart — except for the "Sample data" chip |
+| 10 | A sent turn is optimistic, then reconciled by its echo | The client supplies a `msg_…` id, shows the user turn immediately, and merges the server's echo onto the same row; a failed request removes it. The demo follows the same path, so the UI cannot tell local from remote |
 | 11 | Conservative syntax highlighting | Only comments, strings, numbers and a small keyword set. Aggressive per-language highlighting is confidently wrong more often than it is right |
 | 12 | One canvas, one fill | An earlier revision had five surface tones (`background` → `surfaceContainerHighest`), which turned every region into a card and gave the whole app a boxed-in feel. Surfaces now collapse: `background == surface` is the canvas, `surfaceContainer` is the single fill used by the composer, user turns and control circles, and `surfaceContainerHigh` is the pressed/inset step. **Nothing is outlined and nothing is divided.** Rejected: keeping the ladder and merely tuning it — the problem was the number of steps, not their values |
 | 13 | No app bar on chat | The transcript runs edge to edge between a floating row of circular controls (top) and a floating composer pill (bottom). Both paint the canvas colour, so scrolled content disappears into them rather than sliding under a separate band. Rejected: keeping `EdgeTopBar` on chat — a title, a directory and two lines of chrome cost ~56dp of transcript for information the header no longer needs to carry |
 | 14 | Session statistics behind the overflow menu | Token totals, cost, diff size and context percentage describe the whole session, so they moved out of the transcript. Repeating them under every reply turned the conversation into a log. Context pressure is the one figure that changes what you do next, so it alone surfaces automatically — as a chip in the header once it passes 80% |
-| 15 | Per-turn meta footer removed | The agent name, model and cost are visible in the composer and the overflow menu. A settled turn now shows exactly one action (copy). Rejected: keeping a four-field footer for parity with the old design |
+| 15 | A settled turn carries one action and one meta line | Copy, plus the model that served the reply, its output tokens and the turn's average rate, on a single line. Session-wide figures — cost, totals, context — stay in the overflow menu. Rejected: the earlier four-field footer, which repeated session facts under every reply |
 | 16 | Top-anchored transcript with explicit follow | See *Transcript layout* above |
 | 17 | Subagents are branches, not chats | A `task` call creates an ordinary child session, and the server lists it beside every real session. The repository splits on `parentId`; the chat reaches its children from the call that spawned them and from a chip while they run. Rejected: filtering only in the session list — the subagent would then have no way back into the UI |
+| 18 | A chat's model is committed on send, not on pick | `ModelSelection` keeps pending, committed and recent layers. Picking stages a model; sending makes it the chat's model and moves it to the front of the recent list. Rejected: one global selection, which leaked a model picked in one chat into every other |
+| 19 | One working indicator spans the whole turn | Shown from send until the server reports the session idle, and labelled with the model serving the reply. Rejected: a spinner only while text streams — it left the longest silent phase unexplained |
+| 20 | Session status is merged from REST and events | A session payload carries no status, so `session.status` and `GET /session/status` are applied on top; `time.compacting` is the only in-payload hint |
 
 ## Invariants
 
 1. Nothing above `data/` imports a wire-format type.
-2. `ChatReducer`, `Markdown`, `SyntaxHighlighter`, `Diff` and `Format` stay free
-   of Android types.
+2. `ChatReducer`, `Markdown`, `SyntaxHighlighter`, `Diff`, `Format`, `Fuzzy`,
+   `Json`, `Sse` and `OpenCodeWire` stay free of Android types.
 3. Colour comes from the theme; geometry comes from `Tokens`. No literals in
    feature code.
 4. Every part update reuses its part id, so identity is stable while streaming.

@@ -13,7 +13,7 @@ EdgeCode brings your OpenCode coding sessions to your Android device. Connect to
 - **Model selection** — Choose models from connected providers, with search and recently used models.
 - **Agent selection** — Switch agents and use slash commands.
 - **Tool permissions** — Review and respond to permission requests from agents.
-- **Attachments** — Include supported attachments in your prompts.
+- **Attachments** — Add images and documents to a prompt from the composer.
 - **Markdown rendering** — Read formatted responses and syntax-highlighted code.
 - **Demo mode** — Explore the interface using sample data without connecting to a server.
 - **Native Android experience** — A focused interface designed specifically for mobile devices.
@@ -62,7 +62,7 @@ Use the appropriate hostname and port for your environment. Exposing the server 
 
 ### 2. Install EdgeCode
 
-Download the latest APK from the repository's [Releases](https://github.com/mhs003/edgecode/releases) page, when available.
+Download the latest APK from the repository's [Releases](https://github.com/mhs003/edgecode/releases) page.
 
 Install the APK on your Android device.
 
@@ -128,20 +128,18 @@ The main areas of the codebase include:
 | `core/model/`    | Domain models and application state types                |
 | `core/design/`   | Theme, design tokens, icons, and reusable components     |
 | `core/markdown/` | Markdown parsing and syntax highlighting                 |
-| `core/util/`     | Formatting, diffs, clipboard, images, and JSON utilities |
+| `core/util/`     | Formatting, diffs, fuzzy search, clipboard, images, and JSON |
 | `data/`          | Repository, connection storage, and API abstractions     |
 | `data/net/`      | HTTP transport, OpenCode API integration, and SSE        |
 | `data/demo/`     | Demo implementation and sample fixtures                  |
 
 ## Project Status
 
-EdgeCode is currently under active development. The focus is on polishing the application and making the overall experience stable, reliable, and fully usable before the first public release.
+EdgeCode is a working client for OpenCode v1 servers. The current release connects to a live server and covers sessions, streaming transcripts, tool calls, permissions, model and agent selection, subagents, and attachments. Development continues on polish and reliability.
 
-The initial release will target an OpenCode v1 server. Compatibility with other server versions and additional improvements may be introduced in future updates.
+The target remains an OpenCode v1 server. A v2 adapter is not implemented: v2 answers v1 paths with an HTML document, so it needs a separate wire layer rather than a patch to the existing client.
 
-Prebuilt APKs and official releases will be made available once the application is ready for public use.
-
-Follow the [changelog](CHANGELOG.md) for development updates and check the [releases page](https://github.com/mhs003/edgecode/releases) for future releases.
+Prebuilt APKs are published on the [releases page](https://github.com/mhs003/edgecode/releases). Follow the [changelog](CHANGELOG.md) for what changed in each version.
 
 ## Contributing
 
