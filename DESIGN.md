@@ -77,6 +77,12 @@ Corner radii must be systematic and appropriate to the component. Do not round e
 
 Typography is a primary design tool.
 
+The app ships one typeface: **Fira Code 6.2** (variable, SIL OFL), bundled at
+`res/font/fira_code_vf.ttf`. Programming ligatures are enabled through `calt`
+and `liga`, and tracking is always `0` — letter spacing breaks the monospace
+ligature grid. Weights 300–700 come from the single variable file. The
+interface is deliberately monospaced, including prose, headings and labels.
+
 - Choose a readable, platform-appropriate typeface.
 - Establish semantic text styles for headings, body text, labels, metadata, and controls.
 - Use regular and medium weights as the foundation.

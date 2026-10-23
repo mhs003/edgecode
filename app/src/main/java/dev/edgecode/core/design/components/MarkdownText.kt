@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import dev.edgecode.core.design.EdgeIcons
@@ -76,9 +77,10 @@ fun MarkdownText(
             val isFirst = index == 0
             when (block) {
                 is MdBlock.Heading -> HeadingBlock(block, muted, isFirst)
-                is MdBlock.Paragraph -> Text(
-                    text = renderInline(block.text, inlineColors),
+                is MdBlock.Paragraph -> InlineText(
+                    text = block.text,
                     style = style,
+                    colors = inlineColors,
                 )
                 is MdBlock.Code -> CodeBlock(
                     code = block.code,
@@ -106,6 +108,33 @@ fun MarkdownText(
             }
         }
     }
+}
+
+/**
+ * Inline markdown with its parsed [AnnotatedString] cached.
+ *
+ * During streaming the text grows by one delta at a time, but only the final
+ * block changes. Without this cache every block rebuilt its spans on every
+ * frame; now unchanged blocks reuse their annotation and only the changed
+ * text is re-parsed.
+ */
+@Composable
+private fun InlineText(
+    text: String,
+    style: TextStyle,
+    colors: InlineColors,
+    modifier: Modifier = Modifier,
+    maxLines: Int = Int.MAX_VALUE,
+    color: Color = Color.Unspecified,
+) {
+    val annotated = remember(text, colors) { renderInline(text, colors) }
+    Text(
+        text = annotated,
+        style = style,
+        modifier = modifier,
+        maxLines = maxLines,
+        color = color,
+    )
 }
 
 @Composable
@@ -153,9 +182,10 @@ private fun ListBlock(
                         )
                     }
                 }
-                Text(
-                    text = renderInline(item.text, inlineColors),
+                InlineText(
+                    text = item.text,
                     style = style,
+                    colors = inlineColors,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -208,9 +238,10 @@ private fun QuoteBlock(text: String, style: TextStyle, inlineColors: InlineColor
             }
             .padding(start = Space.md),
     ) {
-        Text(
-            text = renderInline(text, inlineColors.copy(text = scheme.onSurfaceVariant)),
+        InlineText(
+            text = text,
             style = style,
+            colors = inlineColors.copy(text = scheme.onSurfaceVariant),
             color = scheme.onSurfaceVariant,
         )
     }
@@ -237,9 +268,10 @@ private fun TableBlock(block: MdBlock.Table, style: TextStyle, inlineColors: Inl
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             block.headers.forEachIndexed { index, header ->
-                Text(
-                    text = renderInline(header, inlineColors),
+                InlineText(
+                    text = header,
                     style = MaterialTheme.typography.labelLarge,
+                    colors = inlineColors,
                     maxLines = 2,
                     modifier = Modifier
                         .widthIn(min = widths[index])
@@ -251,9 +283,10 @@ private fun TableBlock(block: MdBlock.Table, style: TextStyle, inlineColors: Inl
         block.rows.forEach { row ->
             Row(modifier = Modifier.fillMaxWidth()) {
                 (0 until columns).forEach { index ->
-                    Text(
-                        text = renderInline(row.getOrNull(index).orEmpty(), inlineColors),
+                    InlineText(
+                        text = row.getOrNull(index).orEmpty(),
                         style = style,
+                        colors = inlineColors,
                         modifier = Modifier
                             .widthIn(min = widths[index])
                             .padding(end = Space.md, top = Space.sm, bottom = Space.xs),

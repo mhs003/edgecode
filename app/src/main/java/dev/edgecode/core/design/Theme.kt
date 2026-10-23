@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
@@ -172,73 +171,43 @@ internal val LightScheme = lightColorScheme(
 /*
  * Typography
  * ==========
- * One platform typeface, one monospace for code. Regular and medium carry the
- * interface; semibold is reserved for the few places hierarchy needs it.
+ * Fira Code is the one typeface, declared once in Fonts.kt. Its programming
+ * ligatures are enabled through `calt`/`liga`, and tracking is zero because
+ * letter spacing breaks the monospace ligature grid. Regular and medium carry
+ * the interface; semibold is reserved for the few places hierarchy needs it.
  */
-private val Sans = FontFamily.SansSerif
-private val Mono = FontFamily.Monospace
+private fun edgeStyle(
+    size: Float,
+    lineHeight: Float,
+    weight: FontWeight = FontWeight.Normal,
+) = TextStyle(
+    fontFamily = FiraCode,
+    fontWeight = weight,
+    fontSize = size.sp,
+    lineHeight = lineHeight.sp,
+    letterSpacing = 0.sp,
+    fontFeatureSettings = LIGATURE_FEATURES,
+)
 
 fun monoStyle(
     size: Int = 13,
     lineHeight: Int = 20,
     weight: FontWeight = FontWeight.Normal,
-) = TextStyle(
-    fontFamily = Mono,
-    fontWeight = weight,
-    fontSize = size.sp,
-    lineHeight = lineHeight.sp,
-    letterSpacing = 0.sp,
-)
+) = edgeStyle(size.toFloat(), lineHeight.toFloat(), weight)
 
 val EdgeTypography = Typography(
-    displaySmall = TextStyle(
-        fontFamily = Sans, fontWeight = FontWeight.SemiBold,
-        fontSize = 28.sp, lineHeight = 34.sp, letterSpacing = (-0.4).sp,
-    ),
-    headlineMedium = TextStyle(
-        fontFamily = Sans, fontWeight = FontWeight.SemiBold,
-        fontSize = 22.sp, lineHeight = 28.sp, letterSpacing = (-0.2).sp,
-    ),
-    headlineSmall = TextStyle(
-        fontFamily = Sans, fontWeight = FontWeight.Medium,
-        fontSize = 19.sp, lineHeight = 25.sp, letterSpacing = (-0.1).sp,
-    ),
-    titleLarge = TextStyle(
-        fontFamily = Sans, fontWeight = FontWeight.Medium,
-        fontSize = 17.sp, lineHeight = 23.sp, letterSpacing = 0.sp,
-    ),
-    titleMedium = TextStyle(
-        fontFamily = Sans, fontWeight = FontWeight.Medium,
-        fontSize = 15.sp, lineHeight = 21.sp, letterSpacing = 0.1.sp,
-    ),
-    titleSmall = TextStyle(
-        fontFamily = Sans, fontWeight = FontWeight.Medium,
-        fontSize = 13.sp, lineHeight = 18.sp, letterSpacing = 0.1.sp,
-    ),
-    bodyLarge = TextStyle(
-        fontFamily = Sans, fontWeight = FontWeight.Normal,
-        fontSize = 16.sp, lineHeight = 25.sp, letterSpacing = 0.1.sp,
-    ),
-    bodyMedium = TextStyle(
-        fontFamily = Sans, fontWeight = FontWeight.Normal,
-        fontSize = 14.sp, lineHeight = 21.sp, letterSpacing = 0.1.sp,
-    ),
-    bodySmall = TextStyle(
-        fontFamily = Sans, fontWeight = FontWeight.Normal,
-        fontSize = 12.5.sp, lineHeight = 18.sp, letterSpacing = 0.1.sp,
-    ),
-    labelLarge = TextStyle(
-        fontFamily = Sans, fontWeight = FontWeight.Medium,
-        fontSize = 14.sp, lineHeight = 19.sp, letterSpacing = 0.1.sp,
-    ),
-    labelMedium = TextStyle(
-        fontFamily = Sans, fontWeight = FontWeight.Medium,
-        fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.3.sp,
-    ),
-    labelSmall = TextStyle(
-        fontFamily = Sans, fontWeight = FontWeight.Medium,
-        fontSize = 11.sp, lineHeight = 15.sp, letterSpacing = 0.4.sp,
-    ),
+    displaySmall = edgeStyle(28f, 34f, FontWeight.SemiBold),
+    headlineMedium = edgeStyle(22f, 28f, FontWeight.SemiBold),
+    headlineSmall = edgeStyle(19f, 25f, FontWeight.Medium),
+    titleLarge = edgeStyle(17f, 23f, FontWeight.Medium),
+    titleMedium = edgeStyle(15f, 21f, FontWeight.Medium),
+    titleSmall = edgeStyle(13f, 18f, FontWeight.Medium),
+    bodyLarge = edgeStyle(16f, 25f),
+    bodyMedium = edgeStyle(14f, 21f),
+    bodySmall = edgeStyle(12.5f, 18f),
+    labelLarge = edgeStyle(14f, 19f, FontWeight.Medium),
+    labelMedium = edgeStyle(12f, 16f, FontWeight.Medium),
+    labelSmall = edgeStyle(11f, 15f, FontWeight.Medium),
 )
 
 /** Extended text styles that sit outside the Material scale. */

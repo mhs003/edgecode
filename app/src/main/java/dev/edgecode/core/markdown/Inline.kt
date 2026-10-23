@@ -6,7 +6,6 @@ import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
@@ -168,14 +167,19 @@ private fun AnnotatedString.Builder.appendInline(
     flush()
 }
 
-/** Inline code sits slightly below body size so it does not disturb line rhythm. */
+/**
+ * Inline code sits slightly below body size so it does not disturb line rhythm.
+ *
+ * The family is inherited rather than forced to `Monospace`: the app's paragraph
+ * typeface is already monospaced, and inheriting keeps inline code on the same
+ * ligature path as the text around it.
+ */
 private fun inlineCodeStyle(base: SpanStyle, colors: InlineColors): SpanStyle {
     val size = base.fontSize
     return base.merge(
         SpanStyle(
             color = colors.code,
             background = colors.codeBackground,
-            fontFamily = FontFamily.Monospace,
             // An unspecified size cannot be scaled; leave it to inherit instead.
             fontSize = if (size == TextUnit.Unspecified) TextUnit.Unspecified else size * 0.92f,
         ),

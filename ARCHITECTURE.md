@@ -203,6 +203,7 @@ The replacement keeps the useful half of that property explicitly:
 | 24 | The catalogue reads `/config/providers`, not `/provider` | The full registry is measured in megabytes and lists every provider the server knows, most of them unconfigured. The configured subset is what the picker offers, and it is parsed off the main thread so the session list is not held behind it |
 | 25 | Three-dot actions live in a bottom sheet | A dropdown anchored to a corner control puts a small card at the edge of the screen and gives no room to say what the actions apply to. A sheet is at thumb height and its header can carry the session, server or connection in question |
 | 26 | A saved connection waits for health | Saving on tap made a mistyped address look like a real saved server and then recorded its failure. Health is already the line between connected and not, so it is also the line between saved and not. Test reuses it without side effects |
+| 27 | One bundled variable typeface | Fira Code's programming ligatures are the point, and Android only accepts TTF/OTF in `res/font`. A single 286 KB variable file replaces four static weights (~1.2 MB) and resolves one resource as weights are requested. Downloadable fonts were rejected because they add a network round trip to the first text. Tracking is zero because non-zero letter spacing breaks the ligature grid |
 
 ## Invariants
 
@@ -221,6 +222,9 @@ The replacement keeps the useful half of that property explicitly:
 8. Full-width `Row`s give at most one child `weight`. Unweighted siblings are
    measured first and the last one absorbs the overflow, which is how a status
    label once rendered one character per line down the screen edge.
+9. Typography comes from `EdgeTypography` and `EdgeText`. The font family and
+   the `calt`/`liga` feature string live only in `core/design/Fonts.kt`; feature
+   code sets neither, and tracking stays `0` so the ligature grid holds.
 
 ## Network layer
 

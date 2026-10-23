@@ -10,6 +10,16 @@ release workflow uses the section below as the release notes.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-23
+
+### Changed
+
+- The whole interface now uses Fira Code, bundled as one variable font with
+  programming ligatures enabled. Tracking is zero so the ligatures and the
+  monospace grid hold.
+- Inline markdown spans are cached per block, so streaming a reply no longer
+  rebuilds every settled block on each frame.
+
 ## [1.2.0] - 2026-10-22
 
 ### Added

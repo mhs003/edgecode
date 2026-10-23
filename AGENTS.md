@@ -106,6 +106,10 @@ app/src/main/java/dev/edgecode/
 - **Tokens, not literals.** Colours come from `MaterialTheme.colorScheme` and
   `LocalEdgeColors`; spacing, radii, sizes and durations from `core/design/Tokens`.
   No raw hex or arbitrary `dp` in feature code.
+- **Typography comes from `EdgeTypography` and `EdgeText`.** Fira Code and the
+  `calt`/`liga` feature string live only in `core/design/Fonts.kt`; feature code
+  sets neither `fontFamily` nor `fontFeatureSettings`. Tracking stays `0` so the
+  monospace ligature grid holds.
 - **Components come from `core/design/components`.** Extend them rather than
   styling a Material component inline.
 - **Respect `DESIGN.md` §10 anti-patterns:** no card around every section, no
