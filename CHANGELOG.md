@@ -10,6 +10,37 @@ release workflow uses the section below as the release notes.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-10-24
+
+### Added
+
+- Nine theme families: Edge, Catppuccin, Tokyo Night, Gruvbox, Nord, Solarized,
+  Rosé Pine, Everforest and One. Each has a light and dark variant, and the
+  existing System/light/dark mode selects between them. The choice is persisted.
+- A compact monochrome default palette. The previous teal accent is gone unless
+  a themed family supplies one.
+
+### Changed
+
+- The interface is smaller and calmer: bare app-bar icons, 42dp buttons, 36dp
+  icon controls, a 34dp send control, a tighter type scale, compact cards and
+  picker rows.
+- Chat keeps its floating header and composer, now over functional scrims with
+  bare controls. The composer remains one rounded card with the model, agent
+  and send controls inside it.
+- Assistant replies show Copy only; model and response statistics stay in the
+  session overflow. Session rows show the leaf directory, model and relative
+  time without truncating the time.
+- Settings gains a theme-family picker with a four-dot preview. Connections,
+  sessions, reasonings, tools, code blocks, sheets, dialogs and switches use
+  the product's own surfaces and geometry.
+
+### Fixed
+
+- Button feedback now follows the visible control shape instead of showing a
+  square ripple around a circular action.
+- Every theme variant is contrast-normalised and checked by `ContrastTest`.
+
 ## [1.2.1] - 2026-10-23
 
 ### Changed

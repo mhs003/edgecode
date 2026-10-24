@@ -188,10 +188,10 @@ The replacement keeps the useful half of that property explicitly:
 | 9 | API seam is an interface, not a client | The demo and the shipped v1 client implement the same `OpenCodeApi`, so the UI cannot tell them apart — except for the "Sample data" chip |
 | 10 | A sent turn is optimistic, then reconciled by its echo | The client supplies a `msg_…` id, shows the user turn immediately, and merges the server's echo onto the same row; a failed request removes it. The demo follows the same path, so the UI cannot tell local from remote |
 | 11 | Conservative syntax highlighting | Only comments, strings, numbers and a small keyword set. Aggressive per-language highlighting is confidently wrong more often than it is right |
-| 12 | One canvas, one fill | An earlier revision had five surface tones (`background` → `surfaceContainerHighest`), which turned every region into a card and gave the whole app a boxed-in feel. Surfaces now collapse: `background == surface` is the canvas, `surfaceContainer` is the single fill used by the composer, user turns and control circles, and `surfaceContainerHigh` is the pressed/inset step. **Nothing is outlined and nothing is divided.** Rejected: keeping the ladder and merely tuning it — the problem was the number of steps, not their values |
-| 13 | No app bar on chat | The transcript runs edge to edge between a floating row of circular controls (top) and a floating composer pill (bottom). Both paint the canvas colour, so scrolled content disappears into them rather than sliding under a separate band. Rejected: keeping `EdgeTopBar` on chat — a title, a directory and two lines of chrome cost ~56dp of transcript for information the header no longer needs to carry |
-| 14 | Session statistics behind the overflow menu | Token totals, cost, diff size and context percentage describe the whole session, so they moved out of the transcript. Repeating them under every reply turned the conversation into a log. Context pressure is the one figure that changes what you do next, so it alone surfaces automatically — as a chip in the header once it passes 80% |
-| 15 | A settled turn carries one action and one meta line | Copy, plus the model that served the reply, its output tokens and the turn's average rate, on a single line. Session-wide figures — cost, totals, context — stay in the overflow menu. Rejected: the earlier four-field footer, which repeated session facts under every reply |
+| 12 | One canvas, a small tonal set | `background == surface` is the canvas; `surfaceContainerLow` is the object/composer fill; `surfaceContainerHigh` is the selected/inset step. Cards are for discrete objects, not for every section. Rejected: a five-step elevation ladder, which made the whole app feel boxed in; also rejected: collapsing every region onto one fill, which made session cards and pickers lose their grouping |
+| 13 | Floating chat chrome, no static app bar | The transcript runs edge to edge between a floating row of bare icon controls and the floating composer card, each over a functional gradient scrim. Both reserve their height in the transcript. Rejected: a static app bar, which costs ~52dp of transcript for a title the floating controls can carry; also rejected: filled circular app-bar controls, whose hit and ripple areas dominated the canvas |
+| 14 | Session statistics behind the overflow menu | Token totals, cost, diff size and context percentage describe the whole session, so they live in the overflow summary. Repeating them under every reply turns the conversation into a log. Rejected: a context chip in the floating header — it was large, ambiguous, and competed with the controls |
+| 15 | A settled turn carries one action | Copy is the only action under an assistant reply. The model, output tokens and rate describe the session, not the paragraph, so they stay in the overflow summary. Rejected: a meta footer under every turn |
 | 16 | Top-anchored transcript with explicit follow | See *Transcript layout* above |
 | 17 | Subagents are branches, not chats | A `task` call creates an ordinary child session, and the server lists it beside every real session. The repository splits on `parentId`; the chat reaches its children from the call that spawned them and from a chip while they run. Rejected: filtering only in the session list — the subagent would then have no way back into the UI |
 | 18 | A chat's model is committed on send, not on pick | `ModelSelection` keeps pending, committed and recent layers. Picking stages a model; sending makes it the chat's model and moves it to the front of the recent list. Rejected: one global selection, which leaked a model picked in one chat into every other |
@@ -205,6 +205,10 @@ The replacement keeps the useful half of that property explicitly:
 | 26 | A saved connection waits for health | Saving on tap made a mistyped address look like a real saved server and then recorded its failure. Health is already the line between connected and not, so it is also the line between saved and not. Test reuses it without side effects |
 | 27 | One bundled variable typeface | Fira Code's programming ligatures are the point, and Android only accepts TTF/OTF in `res/font`. A single 286 KB variable file replaces four static weights (~1.2 MB) and resolves one resource as weights are requested. Downloadable fonts were rejected because they add a network round trip to the first text. Tracking is zero because non-zero letter spacing breaks the ligature grid |
 
+| 28 | Theme families are data, not separate layouts | Edge, Catppuccin, Tokyo Night, Gruvbox, Nord, Solarized, Rosé Pine, Everforest and One each map the same semantic roles into a published palette. Light and dark variants are selected by System/light/dark mode, so the layout and component geometry never fork. Rejected: per-theme screens or per-theme component styling |
+| 29 | Every palette is contrast-normalised | Official accents and muted colours are not automatically legible at small sizes. The palette builder derives surfaces and enforces AA on every information-bearing tier before the theme reaches Material. `ContrastTest` runs all families and variants, not only the default |
+| 30 | A control's feedback follows its visible shape | Icon controls use a 32dp box (28dp inside rows); buttons use 38dp; the send control is a 30dp circle. There is no ripple: pressing fades the control in place. Rejected: a larger invisible touch box, whose square ripple visibly exceeded the circle and covered nearby content |
+
 ## Invariants
 
 1. Nothing above `data/` imports a wire-format type.
@@ -217,14 +221,18 @@ The replacement keeps the useful half of that property explicitly:
 6. Every inset has exactly one owner per screen. Nested or repeated inset
    padding is additive and silently pushes content off the window.
 7. Text that carries information clears 4.5:1 against the surface it sits on.
-   `ContrastTest` enforces this for every tier against the canvas *and* the tonal
-   fill; a palette change that breaks it fails the build.
+   `ContrastTest` enforces this for every theme family and variant against the
+   canvas, raised surface and inset fill; a palette change that breaks it fails
+   the build.
 8. Full-width `Row`s give at most one child `weight`. Unweighted siblings are
    measured first and the last one absorbs the overflow, which is how a status
    label once rendered one character per line down the screen edge.
 9. Typography comes from `EdgeTypography` and `EdgeText`. The font family and
    the `calt`/`liga` feature string live only in `core/design/Fonts.kt`; feature
    code sets neither, and tracking stays `0` so the ligature grid holds.
+10. Colour comes from the active `EdgePalette`. Feature code contains no hex
+    values; the default family is monochrome and optional families supply their
+    own accent roles.
 
 ## Network layer
 
