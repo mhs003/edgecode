@@ -281,7 +281,7 @@ private fun ComposerChip(
             color = content,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = if (emphasized) 176.dp else 64.dp),
+            modifier = Modifier.widthIn(max = if (emphasized) 208.dp else 64.dp),
         )
         if (trailing != null) {
             Spacer(Modifier.width(Space.xxs))

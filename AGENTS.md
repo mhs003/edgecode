@@ -135,7 +135,7 @@ never the layout. Match that.
 - **Assistant turns are bare text.** No bubble, no container, no meta footer. A
   settled turn shows one action (copy). Session statistics belong in the
   overflow menu.
-- **User turns are compact tonal bubbles** with a hairline and an 18/6 radius.
+- **User turns are compact tonal bubbles** with a hairline and a 16/6 radius.
   Do not make a short prompt fill the width.
 - **Controls look like their action.** Use `BarIcon` for app-bar actions;
   `CircleButton` only for genuinely filled circular actions such as send.

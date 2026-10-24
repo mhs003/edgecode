@@ -340,6 +340,8 @@ fun AgentPickerSheet(
                                 text = description,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = edge.faint,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }

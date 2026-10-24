@@ -150,7 +150,7 @@ Rules:
 - **Top bar** — flat, canvas-coloured, 50dp. Back, search and overflow are bare
   `BarIcon` controls. A brand mark is optional; the session list uses the
   wordmark alone.
-- **Cards** — session and saved-server cards use `surfaceContainerLow`, a 36dp
+- **Cards** — session and saved-server cards use `surfaceContainerLow`, a 32dp
   circular leading tile and a bare overflow icon. No resting border.
 - **Composer** — a rounded card on the canvas with one hairline. Text on top;
   below it: attach, model, agent, send. Model and agent are text controls with
@@ -158,7 +158,7 @@ Rules:
 - **Chat chrome** — a floating row of bare controls over a gradient scrim at the
   top, and the floating composer over a mirrored scrim at the bottom. Both
   reserve their height in the transcript.
-- **User turns** — tonal, hairline, 18/6 radius, compact 14sp body, right
+- **User turns** — tonal, hairline, 16/6 radius, compact 14sp body, right
   aligned, never wider than 86%.
 - **Assistant turns** — bare text. A settled turn shows only Copy. Session
   statistics live in the overflow menu, not under every reply.
