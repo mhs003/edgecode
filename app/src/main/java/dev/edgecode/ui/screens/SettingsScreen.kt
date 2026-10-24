@@ -212,7 +212,9 @@ private fun ConnectionCard(
             Spacer(Modifier.width(Space.md))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = connected?.profile?.name ?: "Not connected",
+                    text = connected?.profile?.name
+                        ?.takeIf { it != connected.profile?.url }
+                        ?: if (connected != null) "Server" else "Not connected",
                     style = MaterialTheme.typography.titleSmall,
                     color = scheme.onSurface,
                     maxLines = 1,

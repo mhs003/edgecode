@@ -84,16 +84,16 @@ fun monoStyle(
 val EdgeTypography = Typography(
     displaySmall = edgeStyle(26f, 32f, FontWeight.SemiBold),
     headlineMedium = edgeStyle(20f, 26f, FontWeight.Medium),
-    headlineSmall = edgeStyle(18f, 24f, FontWeight.Medium),
-    titleLarge = edgeStyle(18f, 24f, FontWeight.Medium),
-    titleMedium = edgeStyle(16f, 22f, FontWeight.Medium),
-    titleSmall = edgeStyle(14f, 20f, FontWeight.Medium),
-    bodyLarge = edgeStyle(15f, 23f),
-    bodyMedium = edgeStyle(14f, 21f),
+    headlineSmall = edgeStyle(17f, 23f, FontWeight.Medium),
+    titleLarge = edgeStyle(17f, 23f, FontWeight.Medium),
+    titleMedium = edgeStyle(15f, 21f, FontWeight.Medium),
+    titleSmall = edgeStyle(13f, 18f, FontWeight.Medium),
+    bodyLarge = edgeStyle(14f, 21f),
+    bodyMedium = edgeStyle(13f, 20f),
     bodySmall = edgeStyle(12f, 18f),
     labelLarge = edgeStyle(13f, 18f, FontWeight.Medium),
-    labelMedium = edgeStyle(12f, 16f, FontWeight.Medium),
-    labelSmall = edgeStyle(11f, 15f, FontWeight.Medium),
+    labelMedium = edgeStyle(11f, 15f, FontWeight.Medium),
+    labelSmall = edgeStyle(10f, 14f, FontWeight.Medium),
 )
 
 /** Extended text styles that sit outside the Material scale. */

@@ -101,7 +101,7 @@ fun ThemePickerSheet(
                             .clip(RoundedCornerShape(Radius.md))
                             .background(if (isSelected) scheme.surfaceContainerHigh else scheme.background)
                             .tappable { onSelect(family) }
-                            .padding(horizontal = Space.md, vertical = Space.sm),
+                            .padding(horizontal = Space.md, vertical = Space.xs + 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(modifier = Modifier.weight(1f)) {

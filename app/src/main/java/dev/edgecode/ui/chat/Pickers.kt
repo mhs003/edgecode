@@ -195,13 +195,13 @@ private fun ModelRow(
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.md))
             .background(if (isSelected) scheme.surfaceContainerHigh else Color.Transparent)
             .tappable(onClick = onSelect)
-            .padding(horizontal = Space.md, vertical = Space.sm + 2.dp),
+            .padding(horizontal = Space.md, vertical = Space.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = model.name,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 color = scheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

@@ -467,11 +467,6 @@ fun ChatScreen(
                         Spacer(Modifier.width(Space.sm))
                     }
 
-                    if (contextPercent > 0.8f) {
-                        ContextChip(percent = contextPercent)
-                        Spacer(Modifier.width(Space.sm))
-                    }
-
                     BarIcon(
                         icon = EdgeIcons.Plus,
                         contentDescription = "New session",
@@ -822,36 +817,6 @@ private fun subagentStatusLine(subagent: SessionSummary): String {
         SessionStatus.Idle -> "Finished"
     }
     return listOfNotNull(status, subagent.modelLabel).joinToString(" · ")
-}
-
-/**
- * Context pressure, shown only once it is worth acting on. This is the one
- * session statistic that changes what you should do next, so it earns a place
- * in the header; cost and token totals live in the overflow menu.
- */
-@Composable
-private fun ContextChip(percent: Float) {
-    val edge = LocalEdgeColors.current
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(Radius.full))
-            .background(edge.warning.copy(alpha = 0.16f))
-            .padding(horizontal = Space.sm, vertical = Space.xs),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Space.xs),
-    ) {
-        Icon(
-            imageVector = EdgeIcons.Warning,
-            contentDescription = null,
-            tint = edge.warning,
-            modifier = Modifier.size(13.dp),
-        )
-        Text(
-            text = "${(percent * 100).toInt()}%",
-            style = MaterialTheme.typography.labelSmall,
-            color = edge.warning,
-        )
-    }
 }
 
 /**
