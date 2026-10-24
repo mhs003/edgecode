@@ -64,6 +64,8 @@ fun SettingsScreen(
     val edge = LocalEdgeColors.current
     val settings by viewModel.settings_.collectAsState()
     val connection by viewModel.connection.collectAsState()
+    val isDemo = (connection as? ConnectionState.Connected)?.profile?.url
+        ?.startsWith("demo://") == true
     val context = LocalContext.current
     var showThemes by remember { mutableStateOf(false) }
 
@@ -160,16 +162,18 @@ fun SettingsScreen(
                         ?.let { "v$it" } ?: "Not connected",
                     icon = EdgeIcons.Terminal,
                 )
-                Column(
-                    modifier = Modifier.padding(Space.gutter),
-                ) {
-                    Text(
-                        text = "This build runs against a local demo dataset. " +
-                            "Tool calls, streaming replies and permission prompts are " +
-                            "simulated in-process and never leave the device.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = edge.faint,
-                    )
+                if (isDemo) {
+                    Column(
+                        modifier = Modifier.padding(Space.gutter),
+                    ) {
+                        Text(
+                            text = "This build runs against a local demo dataset. " +
+                                "Tool calls, streaming replies and permission prompts are " +
+                                "simulated in-process and never leave the device.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = edge.faint,
+                        )
+                    }
                 }
             }
 

@@ -10,6 +10,13 @@ release workflow uses the section below as the release notes.
 
 ## [Unreleased]
 
+## [1.2.5] - 2026-10-24
+
+### Fixed
+
+- The Settings screen no longer describes a live server connection as a local
+  demo dataset. The demo note appears only for `demo://` sessions.
+
 ## [1.2.4] - 2026-10-24
 
 ### Added
