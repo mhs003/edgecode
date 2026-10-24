@@ -57,7 +57,7 @@ fun ThemeSwatch(family: ThemeFamily, modifier: Modifier = Modifier, dark: Boolea
         colors.forEach { color ->
             Box(
                 modifier = Modifier
-                    .size(if (dark == null) 12.dp else 10.dp)
+                    .size(if (dark == null) 10.dp else 8.dp)
                     .clip(CircleShape)
                     .background(color)
                     .border(Stroke.hairline, MaterialTheme.colorScheme.outline, CircleShape),

@@ -77,7 +77,7 @@ private fun ActionRow(action: SheetAction, onDismiss: () -> Unit) {
                 onDismiss()
                 action.onClick()
             }
-            .padding(horizontal = Space.gutter, vertical = Space.sm + 2.dp),
+            .padding(horizontal = Space.gutter, vertical = Space.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (action.icon != null) {

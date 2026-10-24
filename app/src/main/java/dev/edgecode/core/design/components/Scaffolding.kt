@@ -148,7 +148,7 @@ fun EdgeSearchBar(
         Row(
             modifier = Modifier
                 .weight(1f)
-                .heightIn(min = Size.control)
+                .heightIn(min = Size.input)
                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.md))
                 .background(scheme.surfaceContainer)
                 .padding(start = Space.lg, end = Space.xs),
@@ -209,8 +209,8 @@ fun Section(
                 modifier = Modifier.padding(
                     start = Space.gutter,
                     end = Space.gutter,
-                    top = Space.lg,
-                    bottom = Space.sm,
+                    top = Space.md,
+                    bottom = Space.xs,
                 ),
             )
         }
@@ -237,7 +237,7 @@ fun SettingsRow(
         modifier = modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.tappable(onClick = onClick) else Modifier)
-            .padding(horizontal = Space.gutter, vertical = Space.sm + 2.dp),
+            .padding(horizontal = Space.gutter, vertical = Space.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {

@@ -63,7 +63,7 @@ class ChatLayoutAndResponsivenessTest {
     private fun connectToDemo() {
         rule.onNodeWithText("Explore the demo").performClick()
         rule.waitUntil(timeoutMillis = 10_000) {
-            rule.onAllNodesWithText("Sessions").fetchSemanticsNodes().isNotEmpty()
+            rule.onAllNodesWithText("EdgeCode").fetchSemanticsNodes().isNotEmpty()
         }
     }
 
@@ -82,7 +82,7 @@ class ChatLayoutAndResponsivenessTest {
         val start = SystemClock.uptimeMillis()
         rule.onNodeWithText("Explore the demo").performClick()
         rule.waitUntil(timeoutMillis = 10_000) {
-            rule.onAllNodesWithText("Sessions").fetchSemanticsNodes().isNotEmpty()
+            rule.onAllNodesWithText("EdgeCode").fetchSemanticsNodes().isNotEmpty()
         }
         val elapsed = SystemClock.uptimeMillis() - start
 
@@ -159,8 +159,8 @@ class ChatLayoutAndResponsivenessTest {
         println("PERF bounds root=$root transcript=$transcript composer=$composer")
 
         assertTrue(
-            "Transcript should sit directly above the composer (gap ${transcript.bottom - composer.top})",
-            abs(transcript.bottom - composer.top) < 2f,
+            "Transcript should run to the window bottom (${transcript.bottom} vs ${root.bottom})",
+            abs(transcript.bottom - root.bottom) < 2f,
         )
         assertTrue(
             "Composer bottom ${composer.bottom} should reach the window bottom ${root.bottom}",
@@ -172,17 +172,22 @@ class ChatLayoutAndResponsivenessTest {
         )
     }
 
-    /** The composer must never overlap the transcript viewport. */
+    /** The floating composer sits inside the edge-to-edge transcript. */
     @Test
-    fun transcriptDoesNotOverlapTheComposer() {
+    fun transcriptRunsBehindTheFloatingComposer() {
         openFirstSession()
 
+        val root = rule.onRoot().fetchSemanticsNode().boundsInRoot
         val composer = rule.onNodeWithTag(ComposerTestTag).fetchSemanticsNode().boundsInRoot
         val transcript = rule.onNodeWithTag(TranscriptTestTag).fetchSemanticsNode().boundsInRoot
 
         assertTrue(
-            "Transcript bottom (${transcript.bottom}) overlaps composer top (${composer.top})",
-            transcript.bottom <= composer.top + 1f,
+            "Transcript should fill the window (${transcript.bottom} vs ${root.bottom})",
+            abs(transcript.bottom - root.bottom) < 2f,
+        )
+        assertTrue(
+            "Composer should sit inside the transcript",
+            composer.top < transcript.bottom,
         )
     }
 
@@ -209,7 +214,7 @@ class ChatLayoutAndResponsivenessTest {
     fun composerStaysAnchoredWhenTheInputIsFocused() {
         openFirstSession()
 
-        rule.onNodeWithText("Ask for changes, or type / for commands").performClick()
+        rule.onNodeWithTag(ComposerInputTestTag).performClick()
         rule.waitForIdle()
 
         val root = rule.onRoot().fetchSemanticsNode().boundsInRoot
@@ -222,8 +227,8 @@ class ChatLayoutAndResponsivenessTest {
         rule.onNodeWithContentDescription("Add attachment").assertIsDisplayed()
 
         assertTrue(
-            "Transcript (bottom ${transcript.bottom}) must not be covered by the composer (top ${composer.top})",
-            transcript.bottom <= composer.top + 1f,
+            "Transcript should still fill the window",
+            abs(transcript.bottom - root.bottom) < 2f,
         )
         assertTrue(
             "Composer must not be pushed into the upper half of the window (top ${composer.top} of ${root.height})",
@@ -234,7 +239,11 @@ class ChatLayoutAndResponsivenessTest {
     @Test
     fun lightThemeSelectsDarkSystemBarIcons() {
         connectToDemo()
-        rule.onNodeWithContentDescription("Settings").performClick()
+        rule.onNodeWithContentDescription("More").performClick()
+        rule.waitUntil(timeoutMillis = 5_000) {
+            rule.onAllNodesWithText("Settings").fetchSemanticsNodes().isNotEmpty()
+        }
+        rule.onNodeWithText("Settings").performClick()
         rule.waitUntil(timeoutMillis = 5_000) {
             rule.onAllNodesWithText("APPEARANCE").fetchSemanticsNodes().isNotEmpty()
         }
@@ -273,7 +282,7 @@ class ChatLayoutAndResponsivenessTest {
         // The long title must survive, and its metadata must remain readable
         // rather than being dropped to make the row fit.
         rule.onNodeWithText("Fix export button contrast in Settings").assertIsDisplayed()
-        rule.onNodeWithText("/home/dev/acme/dashboard").assertIsDisplayed()
+        rule.onNodeWithText("dashboard").assertIsDisplayed()
         rule.onNodeWithText("ACTIVE").assertIsDisplayed()
         rule.onNodeWithText("RECENT").assertIsDisplayed()
     }

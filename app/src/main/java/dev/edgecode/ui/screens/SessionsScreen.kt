@@ -288,11 +288,11 @@ private fun NewSessionPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
     Row(
         modifier = modifier
-            .heightIn(min = 46.dp)
-            .clip(RoundedCornerShape(Radius.lg))
+            .heightIn(min = Size.button)
+            .clip(RoundedCornerShape(Radius.md))
             .background(scheme.surfaceContainer)
             .tappable(onClick = onClick)
-            .padding(horizontal = Space.lg),
+            .padding(horizontal = Space.md + 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.sm),
     ) {
@@ -319,8 +319,8 @@ private fun SectionTitle(text: String) {
         modifier = Modifier.padding(
             start = Space.gutter,
             end = Space.gutter,
-            top = Space.lg,
-            bottom = Space.sm,
+            top = Space.md,
+            bottom = Space.xs,
         ),
     )
 }
@@ -428,7 +428,7 @@ private fun SessionRow(
             .clip(RoundedCornerShape(Radius.card))
             .background(scheme.surfaceContainerLow)
             .tappable(onClick = onOpen)
-            .padding(start = Space.md, end = Space.xxs, top = Space.sm + 2.dp, bottom = Space.sm + 2.dp),
+            .padding(start = Space.sm + 2.dp, end = Space.xxs, top = Space.sm, bottom = Space.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -445,7 +445,7 @@ private fun SessionRow(
                 modifier = Modifier.size(Size.icon),
             )
         }
-        Spacer(Modifier.width(Space.md))
+        Spacer(Modifier.width(Space.sm + 2.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -504,7 +504,7 @@ private fun SessionRow(
             icon = EdgeIcons.More,
             contentDescription = "Session actions",
             onClick = onActions,
-            size = Size.touchSm,
+            size = Size.controlSm,
             iconSize = Size.iconSm,
         )
     }

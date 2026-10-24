@@ -84,7 +84,7 @@ fun QuestionCard(
                 androidx.compose.foundation.shape.RoundedCornerShape(Radius.card),
             )
             .testTag(QuestionCardTestTag)
-            .padding(Space.md),
+            .padding(Space.sm + 2.dp),
         verticalArrangement = Arrangement.spacedBy(Space.sm),
     ) {
         Row(

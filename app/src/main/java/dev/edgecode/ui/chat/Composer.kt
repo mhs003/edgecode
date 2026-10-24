@@ -117,7 +117,7 @@ fun Composer(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = Space.md, end = Space.md, top = Space.sm, bottom = Space.md)
+            .padding(start = Space.sm, end = Space.sm, top = Space.xs, bottom = Space.sm)
             .testTag(ComposerTestTag),
     ) {
         AnimatedVisibility(
@@ -159,7 +159,7 @@ fun Composer(
                 maxLines = Size.composerMaxLines,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = Space.md + 2.dp, end = Space.md + 2.dp, top = Space.md, bottom = Space.xxs)
+                    .padding(start = Space.md, end = Space.md, top = Space.sm + 2.dp, bottom = Space.xxs)
                     .testTag(ComposerInputTestTag)
                     .onPreviewKeyEvent { event ->
                         if (sendOnEnter &&
@@ -192,7 +192,7 @@ fun Composer(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = Space.xs, end = Space.xs, bottom = Space.xs),
+                    .padding(start = Space.xxs, end = Space.xxs, bottom = Space.xxs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(
@@ -259,7 +259,7 @@ private fun ComposerChip(
     val content = if (emphasized) scheme.onSurface else scheme.onSurfaceVariant
     Row(
         modifier = modifier
-            .heightIn(min = 40.dp)
+            .heightIn(min = 30.dp)
             .clip(RoundedCornerShape(Radius.sm))
             .tappable(onClick = onClick)
             .padding(horizontal = Space.xs),
@@ -281,7 +281,7 @@ private fun ComposerChip(
             color = content,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = if (emphasized) 190.dp else 72.dp),
+            modifier = Modifier.widthIn(max = if (emphasized) 176.dp else 64.dp),
         )
         if (trailing != null) {
             Spacer(Modifier.width(Space.xxs))
@@ -322,7 +322,7 @@ private fun SlashCommandList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .tappable { onSelect(command) }
-                        .padding(horizontal = Space.lg, vertical = Space.sm),
+                        .padding(horizontal = Space.md, vertical = Space.xs + 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Space.md),
                 ) {

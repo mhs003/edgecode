@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.components.ConfirmDialog
 import dev.edgecode.core.design.components.BarIcon
-import dev.edgecode.core.design.components.EdgeMark
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -44,6 +43,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import dev.edgecode.core.design.EdgeIcons
 import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Size
@@ -130,10 +130,7 @@ fun ConnectScreen(
             .topSystemInset()
             .bottomSystemInset(),
     ) {
-        EdgeTopBar(
-            title = "Connect",
-            leading = { EdgeMark() },
-        )
+        EdgeTopBar(title = "Connect")
 
         Column(
             modifier = Modifier
@@ -175,7 +172,7 @@ fun ConnectScreen(
                 Section(title = "New connection") {
                     Column(
                         modifier = Modifier.padding(horizontal = Space.gutter),
-                        verticalArrangement = Arrangement.spacedBy(Space.lg),
+                        verticalArrangement = Arrangement.spacedBy(Space.md),
                     ) {
                         EdgeTextField(
                             value = name,
@@ -267,10 +264,10 @@ fun ConnectScreen(
                 }
             }
 
-            Spacer(Modifier.height(Space.lg))
+            Spacer(Modifier.height(Space.sm))
 
             Column(
-                modifier = Modifier.padding(horizontal = Space.gutter, vertical = Space.xxl),
+                modifier = Modifier.padding(horizontal = Space.gutter, vertical = Space.md),
                 verticalArrangement = Arrangement.spacedBy(Space.sm),
             ) {
                 EdgeSecondaryButton(
@@ -373,7 +370,7 @@ private fun SavedRow(
             .clip(RoundedCornerShape(Radius.card))
             .background(scheme.surfaceContainerLow)
             .tappable(enabled = enabled, onClick = onConnect)
-            .padding(start = Space.md, end = Space.xxs, top = Space.md, bottom = Space.md),
+            .padding(start = Space.sm + 2.dp, end = Space.xxs, top = Space.sm, bottom = Space.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -390,10 +387,10 @@ private fun SavedRow(
                 modifier = Modifier.size(Size.icon),
             )
         }
-        Spacer(Modifier.width(Space.md))
+        Spacer(Modifier.width(Space.sm + 2.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = connection.name,
+                text = connection.name.takeIf { it != connection.url } ?: "Saved server",
                 style = MaterialTheme.typography.titleSmall,
                 color = scheme.onSurface,
                 maxLines = 1,
@@ -443,7 +440,7 @@ private fun SavedRow(
                 icon = EdgeIcons.More,
                 contentDescription = "Connection actions",
                 onClick = onActions,
-                size = Size.touchSm,
+                size = Size.controlSm,
                 iconSize = Size.iconSm,
             )
         }

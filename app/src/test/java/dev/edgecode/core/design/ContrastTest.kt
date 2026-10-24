@@ -62,6 +62,20 @@ class ContrastTest {
     }
 
     @Test
+    fun everyThemeFamilyMeetsAaContrast() {
+        ThemeFamily.entries.forEach { family ->
+            listOf(false, true).forEach { dark ->
+                val palette = paletteFor(family, dark)
+                val name = "${family.name}-${if (dark) "dark" else "light"}"
+                val scheme = palette.scheme()
+                assertScheme(name, scheme, palette.colors())
+                assertReadable("$name faint/container", palette.faint, palette.surfaceContainer)
+                assertReadable("$name faint/surfaceLow", palette.faint, palette.surfaceLow)
+            }
+        }
+    }
+
+    @Test
     fun darkThemeTextMeetsAaContrast() = assertScheme("dark", DarkScheme, DarkColors)
 
     @Test

@@ -66,7 +66,7 @@ fun EdgeButton(
     val active = enabled && !loading
     Row(
         modifier = modifier
-            .heightIn(min = 42.dp)
+            .heightIn(min = Size.button)
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.md))
             .background(if (active) scheme.primary else scheme.surfaceContainerHigh)
             .tappable(enabled = active, onClick = onClick)
@@ -112,7 +112,7 @@ fun EdgeSecondaryButton(
     val active = enabled && !loading
     Row(
         modifier = modifier
-            .heightIn(min = 42.dp)
+            .heightIn(min = Size.button)
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.md))
             .background(scheme.surfaceContainerLow)
             .border(Stroke.hairline, scheme.outlineVariant, androidx.compose.foundation.shape.RoundedCornerShape(Radius.md))
@@ -228,7 +228,7 @@ fun EdgeTextField(
     singleLine: Boolean = true,
     enabled: Boolean = true,
     isError: Boolean = false,
-    minHeight: androidx.compose.ui.unit.Dp = 48.dp,
+    minHeight: androidx.compose.ui.unit.Dp = Size.input,
     keyboardType: KeyboardType = KeyboardType.Text,
     imeAction: ImeAction = ImeAction.Next,
     visualTransformation: VisualTransformation = VisualTransformation.None,
@@ -278,7 +278,7 @@ fun EdgeTextField(
                             borderColor,
                             androidx.compose.foundation.shape.RoundedCornerShape(Radius.field),
                         )
-                        .padding(horizontal = Space.md, vertical = Space.sm),
+                        .padding(horizontal = Space.sm + 2.dp, vertical = Space.xs + 1.dp),
                     verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top,
                 ) {
                     if (leadingIcon != null) {
@@ -485,12 +485,12 @@ fun EdgeSwitch(
         label = "switchThumb",
     )
     val offset by animateDpAsState(
-        targetValue = if (checked) 18.dp else 2.dp,
+        targetValue = if (checked) 16.dp else 2.dp,
         label = "switchOffset",
     )
     Box(
         modifier = modifier
-            .size(width = 38.dp, height = 22.dp)
+            .size(width = 34.dp, height = 20.dp)
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.full))
             .background(track)
             .border(
@@ -500,6 +500,8 @@ fun EdgeSwitch(
             )
             .toggleable(
                 value = checked,
+                interactionSource = null,
+                indication = null,
                 enabled = enabled,
                 role = Role.Switch,
                 onValueChange = onCheckedChange,
@@ -509,7 +511,7 @@ fun EdgeSwitch(
         Box(
             modifier = Modifier
                 .offset(x = offset)
-                .size(18.dp)
+                .size(16.dp)
                 .clip(CircleShape)
                 .background(thumb),
         )

@@ -201,15 +201,15 @@ private fun ConnectionCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Space.gutter, vertical = Space.md)
+            .padding(horizontal = Space.gutter, vertical = Space.sm)
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.card))
             .background(scheme.surfaceContainerLow)
-            .padding(Space.lg),
+            .padding(Space.md),
         verticalArrangement = Arrangement.spacedBy(Space.sm),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             EdgeMark(size = Size.cardIcon)
-            Spacer(Modifier.width(Space.md))
+            Spacer(Modifier.width(Space.sm + 2.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = connected?.profile?.name
@@ -300,7 +300,7 @@ private fun ToggleRow(
         modifier = Modifier
             .fillMaxWidth()
             .tappable { onToggle(!checked) }
-            .padding(horizontal = Space.gutter, vertical = Space.md),
+            .padding(horizontal = Space.gutter, vertical = Space.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {

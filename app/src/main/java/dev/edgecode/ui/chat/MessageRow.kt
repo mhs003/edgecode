@@ -173,13 +173,13 @@ private fun AssistantMessageRow(
                 icon = EdgeIcons.Copy,
                 contentDescription = "Copy reply",
                 onClick = { copy("reply", plainText) },
-                size = Size.touchSm,
+                size = Size.controlSm,
                 iconSize = Size.iconSm,
                 tint = edge.faint,
                 // Pulled left by half the difference between the touch target
                 // and the glyph, so the icon optically lines up with the text
                 // it belongs to rather than with its own padding.
-                modifier = Modifier.offset(x = -(Size.touchSm - Size.iconSm) / 2),
+                modifier = Modifier.offset(x = -(Size.controlSm - Size.iconSm) / 2),
             )
         }
     }

@@ -172,8 +172,8 @@ private fun PickerLabel(text: String) {
         color = LocalEdgeColors.current.faint,
         modifier = Modifier.padding(
             start = Space.gutter,
-            top = Space.lg,
-            bottom = Space.sm,
+            top = Space.md,
+            bottom = Space.xs,
         ),
     )
 }
@@ -313,7 +313,7 @@ fun AgentPickerSheet(
                             if (agent.id == selected) scheme.surfaceContainerHigh else Color.Transparent,
                         )
                         .tappable { onSelect(agent) }
-                        .padding(horizontal = Space.md, vertical = Space.md),
+                        .padding(horizontal = Space.md, vertical = Space.sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(

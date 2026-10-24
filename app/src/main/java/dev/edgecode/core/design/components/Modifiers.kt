@@ -1,6 +1,9 @@
 package dev.edgecode.core.design.components
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
@@ -8,18 +11,38 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.graphics.graphicsLayer
 
 /**
- * Standard tap target behaviour. Named so intent is obvious at the call site
- * and so press feedback can be changed in one place.
+ * Standard tap behaviour.
+ *
+ * The interface deliberately has no ripple: a ripple is a platform default that
+ * expands beyond small controls and reads as a second, square surface. Press
+ * feedback is a short opacity dip inside the control's own bounds instead.
  */
 fun Modifier.tappable(
     enabled: Boolean = true,
     onClick: () -> Unit,
-): Modifier = this.then(
-    if (enabled) Modifier.clickable(onClick = onClick) else Modifier,
-)
+): Modifier = composed {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val alpha by animateFloatAsState(
+        targetValue = if (enabled && pressed) 0.58f else 1f,
+        label = "pressAlpha",
+    )
+    this
+        .graphicsLayer { this.alpha = alpha }
+        .clickable(
+            interactionSource = interaction,
+            indication = null,
+            enabled = enabled,
+            onClick = onClick,
+        )
+}
 
 /**
  * The screen's top inset. Belongs on the app bar, so list content can scroll
