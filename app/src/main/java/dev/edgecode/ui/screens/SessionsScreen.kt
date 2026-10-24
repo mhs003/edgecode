@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import dev.edgecode.core.design.components.EdgeMark
 import dev.edgecode.core.design.components.BarIcon
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.PaddingValues
@@ -109,13 +108,6 @@ fun SessionsScreen(
     val recent = filtered.filter { it.status == SessionStatus.Idle }
     val questionSessions = remember(questions) { questions.map { it.sessionId }.toSet() }
 
-    val badge = when (val current = connection) {
-        is ConnectionState.Connected -> if (current.info.api.name == "Demo") "Demo" else "Server"
-        is ConnectionState.Connecting -> "Connecting"
-        is ConnectionState.Failed -> "Offline"
-        ConnectionState.Disconnected -> null
-    }
-
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -135,8 +127,6 @@ fun SessionsScreen(
         } else {
             EdgeTopBar(
                 title = "EdgeCode",
-                badge = badge,
-                leading = { EdgeMark() },
                 actions = {
                     BarIcon(
                         icon = EdgeIcons.Search,
