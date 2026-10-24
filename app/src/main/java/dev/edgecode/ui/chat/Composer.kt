@@ -240,7 +240,7 @@ fun Composer(
                     contentDescription = if (streaming) "Stop" else "Send",
                     onClick = { if (streaming) onStop() else onSend() },
                     size = Size.send,
-                    iconSize = if (streaming) Size.iconMd else Size.iconMd,
+                    iconSize = Size.iconMd,
                     fill = if (active) scheme.primary else scheme.surfaceContainerHigh,
                     tint = if (active) scheme.onPrimary else edge.faint,
                     enabled = streaming || value.isNotBlank() || attachments.isNotEmpty(),
