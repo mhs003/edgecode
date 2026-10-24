@@ -37,8 +37,8 @@ release workflow uses the section below as the release notes.
 
 ### Fixed
 
-- Button feedback now follows the visible control shape instead of showing a
-  square ripple around a circular action.
+- Touch feedback is now a short in-place fade with no ripple, so a circular
+  control no longer reveals a larger square press surface.
 - Every theme variant is contrast-normalised and checked by `ContrastTest`.
 
 ## [1.2.1] - 2026-10-23

@@ -181,6 +181,8 @@ fun SessionsScreen(
                                 modelName = session.modelLabel?.let { raw ->
                                     ModelRef.parse(raw)?.let { catalog.model(it)?.name }
                                         ?: raw.substringAfterLast('/')
+                                            .replace('-', ' ')
+                                            .replaceFirstChar { it.uppercase() }
                                 },
                                 hasQuestion = session.id in questionSessions,
                                 onOpen = { viewModel.openSession(session.id) },
@@ -196,6 +198,8 @@ fun SessionsScreen(
                                 modelName = session.modelLabel?.let { raw ->
                                     ModelRef.parse(raw)?.let { catalog.model(it)?.name }
                                         ?: raw.substringAfterLast('/')
+                                            .replace('-', ' ')
+                                            .replaceFirstChar { it.uppercase() }
                                 },
                                 hasQuestion = session.id in questionSessions,
                                 onOpen = { viewModel.openSession(session.id) },
