@@ -10,6 +10,17 @@ release workflow uses the section below as the release notes.
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-10-24
+
+### Fixed
+
+- The refresh and copy glyphs now use their conventional shapes: a circular
+  two-arrow refresh and overlapping sheets for copy. The file-attachment glyph
+  is a paperclip rather than a plus inside a box.
+- Refresh is optically sized to match the other sheet icons. Copy and wrap in
+  the chat transcript and code header now use the compact 32dp control and a
+  15dp glyph.
+
 ## [1.2.2] - 2026-10-24
 
 ### Added

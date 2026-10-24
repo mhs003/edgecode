@@ -171,8 +171,15 @@ object EdgeIcons {
         strokeIcon("Refresh") {
             stroke {
                 moveTo(4.5f, 12f)
-                arcTo(7.5f, 7.5f, 0f, true, true, 19.5f, 12f)
-                moveTo(16.2f, 8.8f); lineTo(19.5f, 12f); lineTo(16.2f, 15.2f)
+                arcTo(7.5f, 7.5f, 0f, false, true, 12f, 4.5f)
+                arcTo(8.125f, 8.125f, 0f, false, true, 17.62f, 6.78f)
+                lineTo(19.5f, 8.67f)
+                moveTo(19.5f, 4.5f); lineTo(19.5f, 8.67f); lineTo(15.33f, 8.67f)
+                moveTo(19.5f, 12f)
+                arcTo(7.5f, 7.5f, 0f, false, true, 12f, 19.5f)
+                arcTo(8.125f, 8.125f, 0f, false, true, 6.38f, 17.22f)
+                lineTo(4.5f, 15.33f)
+                moveTo(8.67f, 15.33f); lineTo(4.5f, 15.33f); lineTo(4.5f, 19.5f)
             }
         }
     }
@@ -221,14 +228,13 @@ object EdgeIcons {
     val Attach: ImageVector by lazy {
         strokeIcon("Attach") {
             stroke {
-                moveTo(8.5f, 4.5f); lineTo(15.5f, 4.5f)
-                quadTo(19.5f, 4.5f, 19.5f, 8.5f); lineTo(19.5f, 15.5f)
-                quadTo(19.5f, 19.5f, 15.5f, 19.5f); lineTo(8.5f, 19.5f)
-                quadTo(4.5f, 19.5f, 4.5f, 15.5f); lineTo(4.5f, 8.5f)
-                quadTo(4.5f, 4.5f, 8.5f, 4.5f)
-                close()
-                moveTo(12f, 9f); lineTo(12f, 15f)
-                moveTo(9f, 12f); lineTo(15f, 12f)
+                moveTo(21.44f, 11.05f); lineTo(12.25f, 20.24f)
+                arcTo(6f, 6f, 0f, false, true, 3.76f, 11.75f)
+                lineTo(12.33f, 3.18f)
+                arcTo(4f, 4f, 0f, true, true, 18f, 8.84f)
+                lineTo(9.41f, 17.41f)
+                arcTo(2f, 2f, 0f, false, true, 6.58f, 14.58f)
+                lineTo(15.07f, 6.1f)
             }
         }
     }
@@ -261,12 +267,13 @@ object EdgeIcons {
     val Copy: ImageVector by lazy {
         strokeIcon("Copy") {
             stroke {
-                moveTo(8.5f, 4.5f); lineTo(14f, 4.5f)
-                quadTo(16f, 4.5f, 16f, 6.5f); lineTo(16f, 12f)
-                moveTo(9f, 8.5f); lineTo(15.5f, 8.5f)
-                quadTo(19.5f, 8.5f, 19.5f, 12.5f); lineTo(19.5f, 17.5f)
-                quadTo(19.5f, 19.5f, 17.5f, 19.5f); lineTo(11f, 19.5f)
-                quadTo(8.5f, 19.5f, 8.5f, 17f); close()
+                moveTo(16f, 4f); lineTo(6f, 4f)
+                quadTo(4f, 4f, 4f, 6f); lineTo(4f, 16f)
+                moveTo(10f, 8f); lineTo(19f, 8f)
+                quadTo(21f, 8f, 21f, 10f); lineTo(21f, 19f)
+                quadTo(21f, 21f, 19f, 21f); lineTo(10f, 21f)
+                quadTo(8f, 21f, 8f, 19f); lineTo(8f, 10f)
+                quadTo(8f, 8f, 10f, 8f); close()
             }
         }
     }

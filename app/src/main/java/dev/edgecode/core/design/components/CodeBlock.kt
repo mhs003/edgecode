@@ -97,8 +97,8 @@ fun CodeBlock(
                     icon = EdgeIcons.Wrap,
                     contentDescription = if (wrapped) "Unwrap lines" else "Wrap lines",
                     onClick = { wrapped = !wrapped },
-                    size = Size.touchSm,
-                    iconSize = Size.iconMd,
+                    size = Size.controlSm,
+                    iconSize = Size.iconSm,
                     tint = if (wrapped) scheme.primary else edge.faint,
                 )
             }
@@ -106,8 +106,8 @@ fun CodeBlock(
                 icon = EdgeIcons.Copy,
                 contentDescription = "Copy code",
                 onClick = { copy("code", code) },
-                size = Size.touchSm,
-                iconSize = Size.iconMd,
+                size = Size.controlSm,
+                iconSize = Size.iconSm,
             )
         }
 
