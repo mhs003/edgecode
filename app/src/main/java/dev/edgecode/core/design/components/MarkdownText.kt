@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import dev.edgecode.core.design.EdgeIcons
+import dev.edgecode.core.design.EdgeText
 import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Space
 import dev.edgecode.core.design.Stroke
@@ -52,9 +53,10 @@ import dev.edgecode.core.markdown.renderInline
 fun MarkdownText(
     text: String,
     modifier: Modifier = Modifier,
-    style: TextStyle = MaterialTheme.typography.bodyLarge,
+    style: TextStyle = EdgeText.chat,
     muted: Boolean = false,
     codeBlockMaxLines: Int = 22,
+    fillWidth: Boolean = true,
 ) {
     val scheme = MaterialTheme.colorScheme
     val edge = LocalEdgeColors.current
@@ -70,8 +72,8 @@ fun MarkdownText(
     }
 
     Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(Space.sm),
+        modifier = modifier.then(if (fillWidth) Modifier.fillMaxWidth() else Modifier),
+        verticalArrangement = Arrangement.spacedBy(Space.md),
     ) {
         blocks.forEachIndexed { index, block ->
             val isFirst = index == 0

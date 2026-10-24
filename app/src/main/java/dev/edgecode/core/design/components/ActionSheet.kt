@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
@@ -51,7 +52,7 @@ fun ActionSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = scheme.surface,
+        containerColor = scheme.background,
         dragHandle = null,
     ) {
         Column(modifier = Modifier.padding(bottom = Space.xl)) {
@@ -76,7 +77,7 @@ private fun ActionRow(action: SheetAction, onDismiss: () -> Unit) {
                 onDismiss()
                 action.onClick()
             }
-            .padding(horizontal = Space.gutter, vertical = Space.md),
+            .padding(horizontal = Space.gutter, vertical = Space.sm + 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (action.icon != null) {

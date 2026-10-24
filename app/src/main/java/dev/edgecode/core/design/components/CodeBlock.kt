@@ -5,6 +5,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import dev.edgecode.core.design.Radius
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -72,14 +75,13 @@ fun CodeBlock(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(MaterialTheme.shapes.small)
-            .background(edge.subtleFill)
-            .border(Stroke.hairline, scheme.outlineVariant, MaterialTheme.shapes.small),
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.md))
+            .background(scheme.surfaceContainer),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = Space.md, end = Space.xxs, top = Space.xxs),
+                .padding(start = Space.md, end = Space.xxs, top = Space.xxs, bottom = Space.xxs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -122,16 +124,29 @@ fun CodeBlock(
             )
         }
 
-        if (overflows && !expanded) {
-            Text(
-                text = "Show all ${lines.size} lines",
-                style = MaterialTheme.typography.labelMedium,
-                color = scheme.primary,
+        if (overflows) {
+            Box(
                 modifier = Modifier
-                    .padding(start = Space.md, end = Space.md, bottom = Space.sm, top = Space.xxs)
-                    .clip(MaterialTheme.shapes.extraSmall)
-                    .tappable { expanded = true },
-            )
+                    .fillMaxWidth()
+                    .padding(bottom = Space.sm),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(Size.controlSm)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.full))
+                        .background(scheme.surfaceContainerHigh)
+                        .tappable { expanded = !expanded },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = if (expanded) EdgeIcons.ChevronUp else EdgeIcons.ChevronDown,
+                        contentDescription = if (expanded) "Collapse code" else "Show all ${lines.size} lines",
+                        tint = scheme.onSurfaceVariant,
+                        modifier = Modifier.size(Size.iconSm),
+                    )
+                }
+            }
         }
     }
 }

@@ -5,10 +5,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import dev.edgecode.core.design.components.EdgeMark
+import dev.edgecode.core.design.components.BarIcon
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -16,14 +21,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -34,7 +36,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,8 +48,9 @@ import dev.edgecode.core.design.Space
 import dev.edgecode.core.design.components.ActionSheet
 import dev.edgecode.core.design.components.Chip
 import dev.edgecode.core.design.components.EdgeButton
+import dev.edgecode.core.design.components.SheetHeader
+import dev.edgecode.core.design.components.ConfirmDialog
 import dev.edgecode.core.design.components.EdgeTextField
-import dev.edgecode.core.design.components.CircleButton
 import dev.edgecode.core.design.components.EdgeSearchBar
 import dev.edgecode.core.design.components.EdgeTopBar
 import dev.edgecode.core.design.components.StatusDot
@@ -65,10 +67,10 @@ import dev.edgecode.core.design.components.tappable
 import dev.edgecode.core.design.components.topSystemInset
 import dev.edgecode.core.model.ConnectionState
 import dev.edgecode.core.model.SessionStatus
+import dev.edgecode.core.model.ModelRef
 import dev.edgecode.core.model.SessionSummary
 import dev.edgecode.core.util.formatCost
 import dev.edgecode.core.util.formatRelative
-import dev.edgecode.core.util.formatTokens
 import dev.edgecode.core.util.shortenPath
 import dev.edgecode.ui.AppViewModel
 
@@ -79,7 +81,6 @@ fun SessionsScreen(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val edge = LocalEdgeColors.current
     val connection by viewModel.connection.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
     val sessionsLoading by viewModel.sessionsLoading.collectAsState()
@@ -108,6 +109,13 @@ fun SessionsScreen(
     val recent = filtered.filter { it.status == SessionStatus.Idle }
     val questionSessions = remember(questions) { questions.map { it.sessionId }.toSet() }
 
+    val badge = when (val current = connection) {
+        is ConnectionState.Connected -> if (current.info.api.name == "Demo") "Demo" else "Server"
+        is ConnectionState.Connecting -> "Connecting"
+        is ConnectionState.Failed -> "Offline"
+        ConnectionState.Disconnected -> null
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -126,22 +134,16 @@ fun SessionsScreen(
             )
         } else {
             EdgeTopBar(
-                title = "Sessions",
-                subtitle = (connection as? ConnectionState.Connected)?.profile?.url,
+                title = "EdgeCode",
+                badge = badge,
+                leading = { EdgeMark() },
                 actions = {
-                    CircleButton(
+                    BarIcon(
                         icon = EdgeIcons.Search,
                         contentDescription = "Search sessions",
                         onClick = { searchOpen = true },
                     )
-                    Spacer(Modifier.width(Space.sm))
-                    CircleButton(
-                        icon = EdgeIcons.Plus,
-                        contentDescription = "New session",
-                        onClick = { creating = true },
-                    )
-                    Spacer(Modifier.width(Space.sm))
-                    CircleButton(
+                    BarIcon(
                         icon = EdgeIcons.More,
                         contentDescription = "More",
                         onClick = { menuOpen = true },
@@ -163,8 +165,8 @@ fun SessionsScreen(
                     EmptyState(
                         title = "No sessions yet",
                         message = "Sessions live on the server. Start one here and it will " +
-                            "appear in the OpenCode TUI too.",
-                        icon = EdgeIcons.Terminal,
+                            "appear in your terminal too.",
+                        icon = EdgeIcons.Chat,
                         action = {
                             EdgeButton(
                                 text = "New session",
@@ -176,32 +178,49 @@ fun SessionsScreen(
                 }
             }
         } else {
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                // Rows are separated by space rather than by rules: a divider
-                // per row turns a list of sessions into a table.
-                if (active.isNotEmpty()) {
-                    item { SectionTitle("Active") }
-                    itemsIndexed(active, key = { _, s -> s.id }) { _, session ->
-                        SessionRow(
-                            session = session,
-                            hasQuestion = session.id in questionSessions,
-                            onOpen = { viewModel.openSession(session.id) },
-                            onActions = { actionSession = session },
-                        )
+            Box(modifier = Modifier.weight(1f)) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 104.dp),
+                ) {
+                    if (active.isNotEmpty()) {
+                        item { SectionTitle("Active") }
+                        itemsIndexed(active, key = { _, s -> s.id }) { _, session ->
+                            SessionRow(
+                                session = session,
+                                modelName = session.modelLabel?.let { raw ->
+                                    ModelRef.parse(raw)?.let { catalog.model(it)?.name }
+                                        ?: raw.substringAfterLast('/')
+                                },
+                                hasQuestion = session.id in questionSessions,
+                                onOpen = { viewModel.openSession(session.id) },
+                                onActions = { actionSession = session },
+                            )
+                        }
+                    }
+                    if (recent.isNotEmpty()) {
+                        item { SectionTitle("Recent") }
+                        itemsIndexed(recent, key = { _, s -> s.id }) { _, session ->
+                            SessionRow(
+                                session = session,
+                                modelName = session.modelLabel?.let { raw ->
+                                    ModelRef.parse(raw)?.let { catalog.model(it)?.name }
+                                        ?: raw.substringAfterLast('/')
+                                },
+                                hasQuestion = session.id in questionSessions,
+                                onOpen = { viewModel.openSession(session.id) },
+                                onActions = { actionSession = session },
+                            )
+                        }
                     }
                 }
-                if (recent.isNotEmpty()) {
-                    item { SectionTitle("Recent") }
-                    itemsIndexed(recent, key = { _, s -> s.id }) { _, session ->
-                        SessionRow(
-                            session = session,
-                            hasQuestion = session.id in questionSessions,
-                            onOpen = { viewModel.openSession(session.id) },
-                            onActions = { actionSession = session },
-                        )
-                    }
-                }
-                item { Spacer(Modifier.height(Space.xxxl)) }
+
+                NewSessionPill(
+                    onClick = { creating = true },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = Space.lg, bottom = Space.lg),
+                )
             }
         }
     }
@@ -248,7 +267,7 @@ fun SessionsScreen(
     }
 
     renaming?.let { session ->
-        RenameDialog(
+        RenameSheet(
             initial = session.title,
             onDismiss = { renaming = null },
             onConfirm = { title ->
@@ -259,30 +278,44 @@ fun SessionsScreen(
     }
 
     deleting?.let { session ->
-        AlertDialog(
-            onDismissRequest = { deleting = null },
-            containerColor = scheme.surfaceContainerHigh,
-            shape = MaterialTheme.shapes.large,
-            title = { Text("Delete session?", style = MaterialTheme.typography.titleLarge) },
-            text = {
-                Text(
-                    text = "\"${session.title}\" and its messages will be removed from the server. " +
-                        "This cannot be undone.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = edge.faint,
-                )
+        ConfirmDialog(
+            title = "Delete session?",
+            message = "\"${session.title}\" and its messages will be removed from the server. " +
+                "This cannot be undone.",
+            confirmLabel = "Delete",
+            destructive = true,
+            onDismiss = { deleting = null },
+            onConfirm = {
+                viewModel.deleteSession(session.id)
+                deleting = null
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteSession(session.id)
-                    deleting = null
-                }) {
-                    Text("Delete", color = scheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { deleting = null }) { Text("Cancel") }
-            },
+        )
+    }
+}
+
+@Composable
+private fun NewSessionPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    Row(
+        modifier = modifier
+            .heightIn(min = 46.dp)
+            .clip(RoundedCornerShape(Radius.lg))
+            .background(scheme.surfaceContainer)
+            .tappable(onClick = onClick)
+            .padding(horizontal = Space.lg),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Space.sm),
+    ) {
+        Icon(
+            imageVector = EdgeIcons.Plus,
+            contentDescription = null,
+            tint = scheme.onSurface,
+            modifier = Modifier.size(Size.icon),
+        )
+        Text(
+            text = "New session",
+            style = MaterialTheme.typography.labelLarge,
+            color = scheme.onSurface,
         )
     }
 }
@@ -324,11 +357,14 @@ private fun ConnectionBanner(
             onReconnect = onReconnect,
         )
 
-        is ConnectionState.Connected -> BannerRow(
-            accent = if (connection.info.healthy) edge.success else scheme.error,
-            label = connection.info.label,
-            isSampleData = connection.info.api.name == "Demo",
-        )
+        is ConnectionState.Connected -> {
+            if (connection.info.api.name != "Demo") return
+            BannerRow(
+                accent = if (connection.info.healthy) edge.success else scheme.error,
+                label = connection.info.label,
+                isSampleData = true,
+            )
+        }
     }
 }
 
@@ -345,8 +381,8 @@ private fun BannerRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(scheme.surface)
-            .padding(horizontal = Space.gutter, vertical = Space.sm),
+            .background(scheme.background)
+            .padding(horizontal = Space.gutter, vertical = Space.xs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.sm),
     ) {
@@ -360,7 +396,7 @@ private fun BannerRow(
             modifier = Modifier.weight(1f, fill = false),
         )
         if (isSampleData) {
-            Chip(text = "Sample data", icon = EdgeIcons.Info, accent = edge.info)
+            Chip(text = "Sample data", icon = EdgeIcons.Info)
         }
         Spacer(Modifier.weight(1f))
         if (onReconnect != null) {
@@ -371,12 +407,12 @@ private fun BannerRow(
             )
         }
     }
-    HorizontalDivider(color = scheme.outlineVariant)
 }
 
 @Composable
 private fun SessionRow(
     session: SessionSummary,
+    modelName: String?,
     hasQuestion: Boolean,
     onOpen: () -> Unit,
     onActions: () -> Unit,
@@ -384,30 +420,42 @@ private fun SessionRow(
     val scheme = MaterialTheme.colorScheme
     val edge = LocalEdgeColors.current
 
-    // Status is carried by the title's weight of colour rather than by a dot:
-    // a dot per row is a column of noise when almost every row is idle.
     val titleColor = when (session.status) {
-        SessionStatus.Working -> scheme.primary
+        SessionStatus.Working -> scheme.onSurface
         SessionStatus.Error -> scheme.error
         SessionStatus.Idle -> scheme.onSurface
     }
 
-    // The leaf directory, not the full path: the list is scanned by title, and a
-    // 26-character absolute path crowds out the model and token figures. The
-    // full path is shown in the session's own overflow menu.
     val meta = buildList {
-        add(session.directory.trimEnd('/').substringAfterLast('/'))
-        session.modelLabel?.let { add(it) }
-        if (session.tokens.total > 0) add("${formatTokens(session.tokens.total)} tok")
+        modelName?.let { add(it) }
+        if (session.status == SessionStatus.Working) add("Working")
     }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = Space.gutter, vertical = Space.xs)
+            .clip(RoundedCornerShape(Radius.card))
+            .background(scheme.surfaceContainerLow)
             .tappable(onClick = onOpen)
-            .padding(start = Space.gutter, end = Space.xxs, top = Space.md, bottom = Space.md),
+            .padding(start = Space.md, end = Space.xxs, top = Space.sm + 2.dp, bottom = Space.sm + 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Box(
+            modifier = Modifier
+                .size(Size.cardIcon)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(scheme.surfaceContainerHigh),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = EdgeIcons.Chat,
+                contentDescription = null,
+                tint = scheme.onSurfaceVariant,
+                modifier = Modifier.size(Size.icon),
+            )
+        }
+        Spacer(Modifier.width(Space.md))
         Column(modifier = Modifier.weight(1f)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -415,34 +463,44 @@ private fun SessionRow(
             ) {
                 Text(
                     text = session.title,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.titleSmall,
                     color = titleColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
                 if (hasQuestion) {
-                    Chip(
-                        text = "Question",
-                        icon = EdgeIcons.Info,
-                        accent = edge.info,
-                    )
+                    Chip(text = "Question", icon = EdgeIcons.Info)
                 }
             }
+            Spacer(Modifier.height(Space.xxs))
+            Text(
+                text = session.directory.trimEnd('/').substringAfterLast('/').ifBlank {
+                    session.directory
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = edge.faint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             Spacer(Modifier.height(Space.xs))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Only the metadata is weighted. Two weighted children would
-                // split the row evenly and truncate the model and token figures
-                // to make room for a timestamp that needs a fraction of them.
+                if (session.status == SessionStatus.Working) {
+                    StatusDot(scheme.onSurfaceVariant)
+                    Spacer(Modifier.width(Space.xs))
+                }
                 Text(
-                    text = meta.joinToString(" · "),
+                    text = meta.joinToString("  ·  "),
                     style = MaterialTheme.typography.labelSmall,
-                    color = edge.faint,
+                    color = if (session.status == SessionStatus.Working) {
+                        scheme.onSurfaceVariant
+                    } else {
+                        edge.faint
+                    },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                Spacer(Modifier.width(Space.sm))
                 Text(
                     text = formatRelative(session.updatedAt),
                     style = MaterialTheme.typography.labelSmall,
@@ -478,7 +536,7 @@ private fun NewSessionSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = scheme.surface,
+        containerColor = scheme.background,
         dragHandle = null,
     ) {
         Column(modifier = Modifier.padding(bottom = Space.xl)) {
@@ -540,35 +598,45 @@ private fun NewSessionSheet(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RenameDialog(
+private fun RenameSheet(
     initial: String,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var value by remember { mutableStateOf(initial) }
-    AlertDialog(
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = scheme.surfaceContainerHigh,
-        shape = MaterialTheme.shapes.large,
-        title = { Text("Rename session", style = MaterialTheme.typography.titleLarge) },
-        text = {
+        sheetState = sheetState,
+        containerColor = scheme.background,
+        dragHandle = null,
+    ) {
+        Column(modifier = Modifier.padding(bottom = Space.xl)) {
+            SheetHeader(
+                title = "Rename session",
+                subtitle = "A short title for the list",
+                onClose = onDismiss,
+            )
             EdgeTextField(
                 value = value,
                 onValueChange = { value = it },
                 placeholder = "Session title",
                 imeAction = ImeAction.Done,
+                modifier = Modifier.padding(horizontal = Space.gutter),
             )
-        },
-        confirmButton = {
-            TextButton(
+            Spacer(Modifier.height(Space.lg))
+            EdgeButton(
+                text = "Save",
                 onClick = { if (value.isNotBlank()) onConfirm(value.trim()) },
                 enabled = value.isNotBlank(),
-            ) { Text("Save") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Space.gutter),
+            )
+        }
+    }
 }

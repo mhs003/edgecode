@@ -37,11 +37,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.edgecode.core.design.EdgeIcons
 import dev.edgecode.core.design.EdgeText
 import dev.edgecode.core.design.LocalEdgeColors
@@ -180,14 +182,20 @@ private fun ReasoningBlock(part: Part.Reasoning, modifier: Modifier = Modifier) 
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = Space.xs, top = Space.xs)
-                    .clip(MaterialTheme.shapes.small)
-                    .background(scheme.surfaceContainerLow)
-                    .padding(Space.md),
+                    .padding(start = Space.xs, top = Space.xs, bottom = Space.sm)
+                    .drawBehind {
+                        val rule = 1.dp.toPx()
+                        drawRect(
+                            color = edge.faint.copy(alpha = 0.45f),
+                            topLeft = androidx.compose.ui.geometry.Offset(0f, 0f),
+                            size = androidx.compose.ui.geometry.Size(rule, size.height),
+                        )
+                    }
+                    .padding(start = Space.md, end = Space.sm),
             ) {
                 MarkdownText(
                     text = part.text,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
                     muted = true,
                 )
                 if (part.streaming) {

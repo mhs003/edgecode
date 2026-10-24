@@ -6,6 +6,12 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import dev.edgecode.core.design.components.EdgeMark
+import dev.edgecode.core.design.Stroke
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,14 +19,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -47,11 +56,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,8 +68,8 @@ import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
 import dev.edgecode.core.design.components.Chip
+import dev.edgecode.core.design.components.BarIcon
 import dev.edgecode.core.design.components.CircleButton
-import dev.edgecode.core.design.components.EmptyState
 import dev.edgecode.core.design.components.ErrorNotice
 import dev.edgecode.core.design.components.InlineProgress
 import dev.edgecode.core.design.components.ActionSheet
@@ -98,8 +104,8 @@ import java.util.UUID
 /** Test tag for the transcript list, used by the scrolling regression tests. */
 const val TranscriptTestTag = "transcript"
 
-/** Height of the floating header's control row, excluding the status-bar inset. */
-private val HeaderHeight = 60.dp
+/** Height of the floating header row, excluding the status-bar inset. */
+private val HeaderHeight = 52.dp
 
 /**
  * Jumps to the very end of the transcript.
@@ -165,9 +171,7 @@ fun ChatScreen(
     var showSubagents by remember { mutableStateOf(false) }
     var showQuestion by remember { mutableStateOf(false) }
 
-    // Measured, not assumed: the composer grows with the prompt, and the
-    // transcript has to reserve exactly as much room as it currently occupies
-    // so the last turn is never trapped behind it.
+    // The composer floats, so the transcript reserves its measured height.
     var composerHeight by remember { mutableStateOf(0) }
     val composerHeightDp = with(LocalDensity.current) { composerHeight.toDp() }
 
@@ -305,11 +309,6 @@ fun ChatScreen(
         if (messages.isNotEmpty()) listState.scrollToEnd(messages.lastIndex)
     }
 
-    // The header floats, so the list has to reserve its full height — including
-    // the status-bar inset it also absorbs. Reserving only the control row left
-    // the first turn underneath the buttons at the top of the transcript.
-    val headerInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-
     // Context pressure belongs to the model that actually served the session.
     // Dividing by the currently selected model reported 146% for a GPT-6
     // session, because it was being divided by Opus's 200k window.
@@ -319,6 +318,11 @@ fun ChatScreen(
     val contextUsed = session?.tokens?.contextUsed ?: 0
     val contextLimit = servingModel?.contextLimit ?: 0
     val contextPercent = if (contextLimit > 0) contextUsed.toFloat() / contextLimit else 0f
+
+    // The floating header absorbs the status-bar inset, so the transcript
+    // reserves both the inset and the control row.
+    val headerInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
     val sessionMenuSubtitle = buildList {
         session?.directory?.let { add(it) }
         val stats = buildList {
@@ -364,20 +368,12 @@ fun ChatScreen(
 
                 // A command can start a turn before any message exists, so
                 // "working" keeps the transcript — and the indicator — on screen.
-                messages.isEmpty() && !working -> Box(
+                messages.isEmpty() && !working -> EmptyConversation(
+                    modelName = workingModel?.name ?: catalog.model(selectedModel)?.name,
+                    readOnly = readOnly,
+                    onSuggestion = { draft = it },
                     modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    EmptyState(
-                        title = "Nothing here yet",
-                        message = if (readOnly) {
-                            "This subagent has not produced any messages."
-                        } else {
-                            "Ask for a change, or open a command with /."
-                        },
-                        icon = if (readOnly) EdgeIcons.Branch else EdgeIcons.Terminal,
-                    )
-                }
+                )
 
                 else -> LazyColumn(
                     state = listState,
@@ -401,11 +397,6 @@ fun ChatScreen(
                                 .widthIn(max = Space.measure),
                             showReasoning = settings.showReasoning,
                             expandTools = settings.expandTools,
-                            // The wire carries the model as provider/id; the
-                            // catalogue is the only place a display name lives.
-                            modelLabel = (message as? ChatMessage.Assistant)
-                                ?.model
-                                ?.let { catalog.model(it)?.name },
                             onOpenSubagent = { childId -> viewModel.openSubagent(childId) },
                         )
                     }
@@ -457,7 +448,7 @@ fun ChatScreen(
                     .padding(horizontal = Space.md, vertical = Space.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                CircleButton(
+                BarIcon(
                     icon = EdgeIcons.Back,
                     contentDescription = "Back to sessions",
                     onClick = { viewModel.back() },
@@ -468,9 +459,6 @@ fun ChatScreen(
                 if (readOnly) {
                     Chip(text = "Subagent", icon = EdgeIcons.Branch)
                 } else {
-                    // Only while one is running: settled ones are reachable from
-                    // the call that spawned them, and a permanent count would be
-                    // noise in a header that is otherwise source-of-truth free.
                     if (activeSubagents > 0) {
                         SubagentChip(
                             count = activeSubagents,
@@ -484,13 +472,13 @@ fun ChatScreen(
                         Spacer(Modifier.width(Space.sm))
                     }
 
-                    CircleButton(
+                    BarIcon(
                         icon = EdgeIcons.Plus,
                         contentDescription = "New session",
                         onClick = { viewModel.back() },
                     )
-                    Spacer(Modifier.width(Space.sm))
-                    CircleButton(
+                    Spacer(Modifier.width(Space.xxs))
+                    BarIcon(
                         icon = EdgeIcons.More,
                         contentDescription = "Session menu",
                         onClick = { menuOpen = true },
@@ -508,8 +496,8 @@ fun ChatScreen(
         }
 
         // Fade behind the composer, mirrored: nothing where the transcript is,
-        // solid canvas at the window edge. The pill itself keeps its own fill
-        // and stays fully transparent around it.
+        // solid canvas at the window edge. The card itself keeps its fill and
+        // the space around it dissolves into the transcript.
         if (!readOnly) {
             Box(
                 modifier = Modifier
@@ -527,9 +515,6 @@ fun ChatScreen(
             )
         }
 
-        // The composer floats over the transcript. It reserves its measured
-        // height in the list's bottom padding, so the last turn can always be
-        // scrolled clear of it while everything else passes underneath.
         if (pendingQuestion != null || pending.isNotEmpty()) {
             Column(
                 modifier = Modifier
@@ -582,8 +567,6 @@ fun ChatScreen(
                 commands = catalog.commands,
                 onCommandSelected = { command ->
                     draft = ""
-                    // Commands the client implements open a surface; the rest are
-                    // the server's to execute.
                     when (command.name) {
                         "models" -> showModels = true
                         "agents" -> showAgents = true
@@ -665,6 +648,89 @@ fun ChatScreen(
     }
 }
 
+/** The first screen of a chat: a place to start, not an empty list. */
+@Composable
+private fun EmptyConversation(
+    modelName: String?,
+    readOnly: Boolean,
+    onSuggestion: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val edge = LocalEdgeColors.current
+    val suggestions = listOf(
+        "Explain a tricky piece of code",
+        "Plan a change across files",
+        "Help me debug a failure",
+        "Summarize this project",
+    )
+    Column(
+        modifier = modifier
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = Space.xl, vertical = Space.xl),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        EdgeMark(size = 64.dp)
+        Spacer(Modifier.height(Space.lg))
+        Text(
+            text = if (readOnly) "No output yet" else "What are we building?",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Medium,
+            color = scheme.onSurface,
+        )
+        Spacer(Modifier.height(Space.xs))
+        Text(
+            text = if (readOnly) {
+                "This subagent has not produced any messages."
+            } else {
+                "Chatting with ${modelName ?: "the selected model"}. Conversations stay on this device."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = edge.faint,
+        )
+        if (!readOnly) {
+            Spacer(Modifier.height(Space.xl))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(Radius.field))
+                    .background(scheme.surfaceContainerLow)
+                    .border(
+                        Stroke.hairline,
+                        scheme.outlineVariant,
+                        RoundedCornerShape(Radius.field),
+                    ),
+            ) {
+                suggestions.forEachIndexed { index, suggestion ->
+                    if (index > 0) {
+                        androidx.compose.material3.HorizontalDivider(color = scheme.outlineVariant)
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .tappable { onSuggestion(suggestion) }
+                            .padding(horizontal = Space.lg, vertical = Space.md),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = suggestion,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Icon(
+                            imageVector = EdgeIcons.ArrowUpLeft,
+                            contentDescription = null,
+                            tint = edge.faint,
+                            modifier = Modifier.size(Size.iconSm),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 /** The header affordance for work running beside this chat. */
 @Composable
 private fun SubagentChip(count: Int, onClick: () -> Unit) {
@@ -696,7 +762,7 @@ private fun SubagentSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = scheme.surface,
+        containerColor = scheme.background,
         dragHandle = null,
     ) {
         Column(modifier = Modifier.padding(bottom = Space.xl)) {

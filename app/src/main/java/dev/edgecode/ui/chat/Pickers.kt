@@ -3,6 +3,8 @@ package dev.edgecode.ui.chat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -90,7 +92,7 @@ fun ModelPickerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = scheme.surface,
+        containerColor = scheme.background,
         dragHandle = null,
     ) {
         SheetHeader(
@@ -189,23 +191,26 @@ private fun ModelRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = Space.sm)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.md))
+            .background(if (isSelected) scheme.surfaceContainerHigh else Color.Transparent)
             .tappable(onClick = onSelect)
-            .padding(horizontal = Space.gutter, vertical = Space.md),
+            .padding(horizontal = Space.md, vertical = Space.sm + 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = model.name,
+                style = MaterialTheme.typography.bodyLarge,
+                color = scheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(Space.xxs))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Space.sm),
             ) {
-                Text(
-                    text = model.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = scheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
                 if (showProvider) {
                     Text(
                         text = model.providerName,
@@ -214,13 +219,8 @@ private fun ModelRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    Text(text = "·", style = MaterialTheme.typography.labelSmall, color = edge.faint)
                 }
-            }
-            Spacer(Modifier.height(Space.xxs))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Space.sm),
-            ) {
                 Text(
                     text = "${formatTokens(model.contextLimit)} context",
                     style = MaterialTheme.typography.labelSmall,
@@ -229,51 +229,53 @@ private fun ModelRow(
                 if (model.inputCostPerM > 0 || model.outputCostPerM > 0) {
                     Text(text = "·", style = MaterialTheme.typography.labelSmall, color = edge.faint)
                     Text(
-                        text = "$${trim(model.inputCostPerM)} / $${trim(model.outputCostPerM)} per M",
+                        text = "$${trim(model.inputCostPerM)} / $${trim(model.outputCostPerM)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = edge.faint,
                     )
                 }
             }
-            Spacer(Modifier.height(Space.xs))
-            Row(horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
-                if (model.capabilities.reasoning) {
-                    CapabilityTag("thinking")
-                }
-                if (model.capabilities.vision) {
-                    CapabilityTag("vision")
-                }
-                if (model.capabilities.attachments) {
-                    CapabilityTag("files")
-                }
-                if (model.variants.size > 1) {
-                    CapabilityTag("${model.variants.size} variants")
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(Space.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (model.capabilities.reasoning) {
+                Icon(
+                    imageVector = EdgeIcons.Sparkle,
+                    contentDescription = "Thinking",
+                    tint = edge.faint,
+                    modifier = Modifier.size(Size.iconSm),
+                )
+            }
+            if (model.capabilities.vision) {
+                Icon(
+                    imageVector = EdgeIcons.Image,
+                    contentDescription = "Image input",
+                    tint = edge.faint,
+                    modifier = Modifier.size(Size.iconSm),
+                )
+            }
+            if (model.capabilities.attachments) {
+                Icon(
+                    imageVector = EdgeIcons.Attach,
+                    contentDescription = "File input",
+                    tint = edge.faint,
+                    modifier = Modifier.size(Size.iconSm),
+                )
+            }
+            Box(modifier = Modifier.size(Size.icon)) {
+                if (isSelected) {
+                    Icon(
+                        imageVector = EdgeIcons.Check,
+                        contentDescription = "Selected",
+                        tint = scheme.primary,
+                        modifier = Modifier.size(Size.icon),
+                    )
                 }
             }
         }
-        if (isSelected) {
-            Icon(
-                imageVector = EdgeIcons.Check,
-                contentDescription = "Selected",
-                tint = scheme.primary,
-                modifier = Modifier.size(Size.icon),
-            )
-        }
     }
-}
-
-@Composable
-private fun CapabilityTag(text: String) {
-    val edge = LocalEdgeColors.current
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelSmall,
-        color = edge.faint,
-        modifier = Modifier
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.xs))
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .padding(horizontal = Space.xs + 1.dp, vertical = 2.dp),
-    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -291,7 +293,7 @@ fun AgentPickerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = scheme.surface,
+        containerColor = scheme.background,
         dragHandle = null,
     ) {
         SheetHeader(
@@ -305,8 +307,13 @@ fun AgentPickerSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(horizontal = Space.sm)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.md))
+                        .background(
+                            if (agent.id == selected) scheme.surfaceContainerHigh else Color.Transparent,
+                        )
                         .tappable { onSelect(agent) }
-                        .padding(horizontal = Space.gutter, vertical = Space.md),
+                        .padding(horizontal = Space.md, vertical = Space.md),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
@@ -344,12 +351,6 @@ fun AgentPickerSheet(
                             modifier = Modifier.size(Size.icon),
                         )
                     }
-                }
-                if (index < agents.lastIndex) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = Space.gutter),
-                        color = scheme.outlineVariant,
-                    )
                 }
             }
         }

@@ -1,6 +1,7 @@
 package dev.edgecode.data
 
 import android.content.Context
+import dev.edgecode.core.design.ThemeFamily
 import dev.edgecode.core.design.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +15,8 @@ import kotlinx.coroutines.flow.asStateFlow
  * credentials in encrypted storage rather than here.
  */
 data class Settings(
-    val themeMode: ThemeMode = ThemeMode.Dark,
+    val themeMode: ThemeMode = ThemeMode.System,
+    val themeFamily: ThemeFamily = ThemeFamily.Edge,
     val serverUrl: String = "",
     val serverName: String = "",
     val serverUsername: String? = null,
@@ -39,8 +41,9 @@ class SettingsStore(context: Context) {
 
     private fun read() = Settings(
         themeMode = runCatching {
-            ThemeMode.valueOf(prefs.getString(KEY_THEME, null) ?: ThemeMode.Dark.name)
-        }.getOrDefault(ThemeMode.Dark),
+            ThemeMode.valueOf(prefs.getString(KEY_THEME, null) ?: ThemeMode.System.name)
+        }.getOrDefault(ThemeMode.System),
+        themeFamily = ThemeFamily.fromStorage(prefs.getString(KEY_THEME_FAMILY, null)),
         serverUrl = prefs.getString(KEY_URL, "").orEmpty(),
         serverName = prefs.getString(KEY_NAME, "").orEmpty(),
         serverUsername = prefs.getString(KEY_USER, null),
@@ -65,6 +68,11 @@ class SettingsStore(context: Context) {
     fun setTheme(mode: ThemeMode) {
         prefs.edit().putString(KEY_THEME, mode.name).apply()
         _state.value = _state.value.copy(themeMode = mode)
+    }
+
+    fun setThemeFamily(family: ThemeFamily) {
+        prefs.edit().putString(KEY_THEME_FAMILY, family.name).apply()
+        _state.value = _state.value.copy(themeFamily = family)
     }
 
     fun saveServer(url: String, name: String, username: String?) {
@@ -117,6 +125,7 @@ class SettingsStore(context: Context) {
 
     private companion object {
         const val KEY_THEME = "theme"
+        const val KEY_THEME_FAMILY = "theme.family"
         const val KEY_URL = "server.url"
         const val KEY_NAME = "server.name"
         const val KEY_USER = "server.user"

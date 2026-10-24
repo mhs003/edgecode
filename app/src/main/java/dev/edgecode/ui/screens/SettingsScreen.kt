@@ -1,6 +1,8 @@
 package dev.edgecode.ui.screens
 
 import androidx.compose.foundation.background
+import dev.edgecode.core.design.Stroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -20,7 +23,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,14 +35,18 @@ import dev.edgecode.core.design.EdgeIcons
 import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
+import dev.edgecode.core.design.ThemeFamily
 import dev.edgecode.core.design.ThemeMode
 import dev.edgecode.core.design.components.Chip
+import dev.edgecode.core.design.components.EdgeSwitch
+import dev.edgecode.core.design.components.ThemePickerSheet
+import dev.edgecode.core.design.components.ThemeSwatch
+import dev.edgecode.core.design.components.EdgeMark
 import dev.edgecode.core.design.components.EdgeSecondaryButton
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.components.EdgeTopBar
-import dev.edgecode.core.design.components.RowDivider
 import dev.edgecode.core.design.components.Section
 import dev.edgecode.core.design.components.SettingsRow
 import dev.edgecode.core.design.components.bottomSystemInset
@@ -56,6 +65,7 @@ fun SettingsScreen(
     val settings by viewModel.settings_.collectAsState()
     val connection by viewModel.connection.collectAsState()
     val context = LocalContext.current
+    var showThemes by remember { mutableStateOf(false) }
 
     val version = remember {
         runCatching {
@@ -77,18 +87,41 @@ fun SettingsScreen(
 
         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
 
+            ConnectionCard(
+                connection = connection,
+                onDisconnect = { viewModel.disconnect() },
+            )
+
             Section(title = "Appearance") {
+                SettingsRow(
+                    title = "Theme",
+                    subtitle = "${settings.themeFamily.lightVariant} · ${settings.themeFamily.darkVariant}",
+                    onClick = { showThemes = true },
+                    trailing = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            ThemeSwatch(family = settings.themeFamily)
+                            Spacer(Modifier.width(Space.sm))
+                            Icon(
+                                imageVector = EdgeIcons.ChevronRight,
+                                contentDescription = null,
+                                tint = edge.faint,
+                                modifier = Modifier.size(Size.iconSm),
+                            )
+                        }
+                    },
+                )
                 Text(
-                    text = "Theme",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = scheme.onSurface,
+                    text = "Mode",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = edge.faint,
                     modifier = Modifier.padding(
                         start = Space.gutter,
                         end = Space.gutter,
-                        bottom = Space.sm,
+                        top = Space.md,
+                        bottom = Space.xs,
                     ),
                 )
-                ThemeSelector(
+                ModeSelector(
                     current = settings.themeMode,
                     onSelect = { viewModel.setTheme(it) },
                 )
@@ -113,33 +146,6 @@ fun SettingsScreen(
                     checked = settings.sendOnEnter,
                     onToggle = { viewModel.setSendOnEnter(it) },
                 )
-            }
-
-            Section(title = "Server") {
-                val connected = connection as? ConnectionState.Connected
-                SettingsRow(
-                    title = connected?.profile?.name ?: "Not connected",
-                    subtitle = connected?.profile?.url ?: "No server configured",
-                    icon = EdgeIcons.Server,
-                    trailing = {
-                        connected?.let {
-                            Chip(
-                                text = it.info.label,
-                                accent = if (it.info.api.name == "Demo") edge.info else edge.success,
-                            )
-                        }
-                    },
-                )
-                if (connected != null) {
-                    RowDivider()
-                    Box(modifier = Modifier.padding(Space.gutter)) {
-                        EdgeSecondaryButton(
-                            text = "Disconnect",
-                            onClick = { viewModel.disconnect() },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
             }
 
             Section(title = "About") {
@@ -170,15 +176,78 @@ fun SettingsScreen(
             Spacer(Modifier.height(Space.xxxl))
         }
     }
+
+    if (showThemes) {
+        ThemePickerSheet(
+            selected = settings.themeFamily,
+            onSelect = {
+                viewModel.setThemeFamily(it)
+                showThemes = false
+            },
+            onDismiss = { showThemes = false },
+        )
+    }
 }
 
 @Composable
-private fun ThemeSelector(current: ThemeMode, onSelect: (ThemeMode) -> Unit) {
+private fun ConnectionCard(
+    connection: ConnectionState,
+    onDisconnect: () -> Unit,
+) {
     val scheme = MaterialTheme.colorScheme
     val edge = LocalEdgeColors.current
+    val connected = connection as? ConnectionState.Connected
 
-    // Segmented pills on the single fill, not tiles on a card: the selected
-    // state is the accent, everything else is the same tone as the composer.
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Space.gutter, vertical = Space.md)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.card))
+            .background(scheme.surfaceContainerLow)
+            .padding(Space.lg),
+        verticalArrangement = Arrangement.spacedBy(Space.sm),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            EdgeMark(size = Size.cardIcon)
+            Spacer(Modifier.width(Space.md))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = connected?.profile?.name ?: "Not connected",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = scheme.onSurface,
+                    maxLines = 1,
+                )
+                Text(
+                    text = connected?.profile?.url ?: "No server configured",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = edge.faint,
+                    maxLines = 1,
+                )
+            }
+            connected?.let {
+                Chip(text = it.info.label)
+            }
+        }
+        if (connected != null) {
+            Text(
+                text = "Connected to an OpenCode server. The session list, models and " +
+                    "questions all come from this endpoint.",
+                style = MaterialTheme.typography.bodySmall,
+                color = edge.faint,
+            )
+            EdgeSecondaryButton(
+                text = "Disconnect",
+                onClick = onDisconnect,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ModeSelector(current: ThemeMode, onSelect: (ThemeMode) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val edge = LocalEdgeColors.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -191,27 +260,25 @@ private fun ThemeSelector(current: ThemeMode, onSelect: (ThemeMode) -> Unit) {
                 modifier = Modifier
                     .weight(1f)
                     .heightIn(min = Size.touchSm)
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.full))
-                    .background(if (selected) scheme.primary else scheme.surfaceContainer)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.md))
+                    .background(if (selected) scheme.surfaceContainerHigh else scheme.surfaceContainerLow)
+                    .border(
+                        Stroke.hairline,
+                        if (selected) scheme.onSurface.copy(alpha = 0.28f) else scheme.outlineVariant,
+                        androidx.compose.foundation.shape.RoundedCornerShape(Radius.md),
+                    )
                     .tappable { onSelect(mode) },
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                androidx.compose.material3.Icon(
-                    imageVector = when (mode) {
-                        ThemeMode.Dark -> EdgeIcons.Moon
-                        ThemeMode.Light -> EdgeIcons.Sun
-                        ThemeMode.System -> EdgeIcons.Settings
-                    },
-                    contentDescription = null,
-                    tint = if (selected) scheme.onPrimary else edge.faint,
-                    modifier = Modifier.size(Size.iconSm),
-                )
-                Spacer(Modifier.width(Space.sm))
                 Text(
-                    text = mode.name,
+                    text = when (mode) {
+                        ThemeMode.System -> "System"
+                        ThemeMode.Light -> "Light"
+                        ThemeMode.Dark -> "Dark"
+                    },
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (selected) scheme.onPrimary else scheme.onSurfaceVariant,
+                    color = if (selected) scheme.onSurface else edge.faint,
                 )
             }
         }
@@ -246,16 +313,9 @@ private fun ToggleRow(
                 color = edge.faint,
             )
         }
-        Switch(
+        EdgeSwitch(
             checked = checked,
             onCheckedChange = onToggle,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = scheme.onPrimary,
-                checkedTrackColor = scheme.primary,
-                uncheckedThumbColor = edge.faint,
-                uncheckedTrackColor = scheme.surfaceContainerHigh,
-                uncheckedBorderColor = scheme.outline,
-            ),
         )
     }
 }

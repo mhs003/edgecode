@@ -26,8 +26,8 @@ fun IconAction(
     contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    size: Dp = Size.touch,
-    iconSize: Dp = Size.icon,
+    size: Dp = Size.control,
+    iconSize: Dp = Size.iconSm,
     tint: Color = LocalEdgeColors.current.faint,
     enabled: Boolean = true,
 ) {

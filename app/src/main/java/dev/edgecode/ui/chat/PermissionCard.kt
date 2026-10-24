@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import dev.edgecode.core.design.EdgeIcons
 import dev.edgecode.core.design.EdgeText
 import dev.edgecode.core.design.LocalEdgeColors
+import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
 import dev.edgecode.core.design.Stroke
@@ -52,9 +53,13 @@ fun PermissionCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = Space.md, vertical = Space.sm)
-            .clip(MaterialTheme.shapes.medium)
-            .background(scheme.surfaceContainer)
-            .border(Stroke.hairline, scheme.outlineVariant, MaterialTheme.shapes.medium)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.card))
+            .background(scheme.surfaceContainerLow)
+            .border(
+                Stroke.hairline,
+                scheme.outlineVariant,
+                androidx.compose.foundation.shape.RoundedCornerShape(Radius.card),
+            )
             .padding(Space.md),
         verticalArrangement = Arrangement.spacedBy(Space.sm),
     ) {

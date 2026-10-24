@@ -1,10 +1,13 @@
 package dev.edgecode.core.design.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -62,11 +66,11 @@ fun EdgeButton(
     val active = enabled && !loading
     Row(
         modifier = modifier
-            .heightIn(min = 48.dp)
-            .clip(MaterialTheme.shapes.medium)
+            .heightIn(min = 42.dp)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.md))
             .background(if (active) scheme.primary else scheme.surfaceContainerHigh)
             .tappable(enabled = active, onClick = onClick)
-            .padding(horizontal = Space.xl),
+            .padding(horizontal = Space.lg),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
@@ -108,12 +112,12 @@ fun EdgeSecondaryButton(
     val active = enabled && !loading
     Row(
         modifier = modifier
-            .heightIn(min = 48.dp)
-            .clip(MaterialTheme.shapes.medium)
-            .background(scheme.surfaceContainer)
-            .border(Stroke.hairline, scheme.outlineVariant, MaterialTheme.shapes.medium)
+            .heightIn(min = 42.dp)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.md))
+            .background(scheme.surfaceContainerLow)
+            .border(Stroke.hairline, scheme.outlineVariant, androidx.compose.foundation.shape.RoundedCornerShape(Radius.md))
             .tappable(enabled = active, onClick = onClick)
-            .padding(horizontal = Space.xl),
+            .padding(horizontal = Space.lg),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
@@ -169,24 +173,18 @@ fun CircleButton(
     // never below the 48dp platform minimum.
     Box(
         modifier = modifier
-            .size(maxOf(size, Size.touch))
+            .size(size)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.full))
+            .background(if (enabled) fill ?: scheme.surfaceContainer else scheme.surfaceContainerLow)
             .tappable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Box(
-            modifier = Modifier
-                .size(size)
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.full))
-                .background(if (enabled) fill ?: scheme.surfaceContainer else scheme.surfaceContainerLow),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = if (enabled) tint ?: scheme.onSurfaceVariant else edge.faint,
-                modifier = Modifier.size(iconSize),
-            )
-        }
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = if (enabled) tint ?: scheme.onSurfaceVariant else edge.faint,
+            modifier = Modifier.size(iconSize),
+        )
     }
 }
 
@@ -273,9 +271,13 @@ fun EdgeTextField(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = minHeight)
-                        .clip(MaterialTheme.shapes.medium)
-                        .background(if (enabled) scheme.surfaceContainer else scheme.surfaceContainerLow)
-                        .border(Stroke.hairline, borderColor, MaterialTheme.shapes.medium)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.field))
+                        .background(if (enabled) scheme.surfaceContainerLow else scheme.surfaceContainer)
+                        .border(
+                            Stroke.hairline,
+                            borderColor,
+                            androidx.compose.foundation.shape.RoundedCornerShape(Radius.field),
+                        )
                         .padding(horizontal = Space.md, vertical = Space.sm),
                     verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top,
                 ) {
@@ -331,7 +333,7 @@ fun Chip(
     Row(
         modifier = modifier
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.full))
-            .background(if (accent != null) accent.copy(alpha = 0.14f) else scheme.surfaceContainer)
+            .background(if (accent != null) accent.copy(alpha = 0.14f) else scheme.surfaceContainerHigh)
             .padding(horizontal = Space.sm, vertical = Space.xxs + 1.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.xs),
@@ -374,7 +376,7 @@ fun ChoiceRow(
             .fillMaxWidth()
             .heightIn(min = Size.touch)
             .clip(MaterialTheme.shapes.small)
-            .background(if (selected) scheme.surfaceContainer else Color.Transparent)
+            .background(if (selected) scheme.surfaceContainerHigh else Color.Transparent)
             .selectable(
                 selected = selected,
                 role = if (multi) Role.Checkbox else Role.RadioButton,
@@ -417,6 +419,100 @@ fun ChoiceRow(
                 )
             }
         }
+    }
+}
+
+/**
+ * A bare icon control for app bars.
+ *
+ * The tappable area stays at the platform minimum even where the glyph looks
+ * small enough to sit inside a 40dp row.
+ */
+@Composable
+fun BarIcon(
+    icon: ImageVector,
+    contentDescription: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    tint: Color? = null,
+) {
+    val scheme = MaterialTheme.colorScheme
+    Box(
+        modifier = modifier
+            .size(Size.control)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .tappable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = if (enabled) tint ?: scheme.onSurface else LocalEdgeColors.current.faint,
+            modifier = Modifier.size(Size.icon),
+        )
+    }
+}
+
+/**
+ * Monochrome switch. The Material default carries an accent track and a
+ * shadowed thumb that read as stock; this keeps the same semantics with the
+ * product's own geometry.
+ */
+@Composable
+fun EdgeSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val edge = LocalEdgeColors.current
+    val track by animateColorAsState(
+        targetValue = when {
+            !enabled -> scheme.surfaceContainer
+            checked -> scheme.onSurface
+            else -> scheme.surfaceContainerHigh
+        },
+        label = "switchTrack",
+    )
+    val thumb by animateColorAsState(
+        targetValue = when {
+            !enabled -> edge.faint.copy(alpha = 0.5f)
+            checked -> scheme.surface
+            else -> edge.faint
+        },
+        label = "switchThumb",
+    )
+    val offset by animateDpAsState(
+        targetValue = if (checked) 18.dp else 2.dp,
+        label = "switchOffset",
+    )
+    Box(
+        modifier = modifier
+            .size(width = 38.dp, height = 22.dp)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.full))
+            .background(track)
+            .border(
+                Stroke.hairline,
+                if (checked) Color.Transparent else scheme.outlineVariant,
+                androidx.compose.foundation.shape.RoundedCornerShape(Radius.full),
+            )
+            .toggleable(
+                value = checked,
+                enabled = enabled,
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            )
+            .padding(2.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .offset(x = offset)
+                .size(18.dp)
+                .clip(CircleShape)
+                .background(thumb),
+        )
     }
 }
 

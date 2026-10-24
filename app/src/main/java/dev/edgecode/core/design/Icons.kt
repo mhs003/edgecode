@@ -120,6 +120,31 @@ object EdgeIcons {
         }
     }
 
+    /** Conversation. A rounded speech bubble, used by the session cards. */
+    val Chat: ImageVector by lazy {
+        strokeIcon("Chat") {
+            stroke {
+                moveTo(5.5f, 4.5f); lineTo(18.5f, 4.5f)
+                quadTo(20.5f, 4.5f, 20.5f, 6.5f); lineTo(20.5f, 14.5f)
+                quadTo(20.5f, 16.5f, 18.5f, 16.5f); lineTo(11.5f, 16.5f)
+                lineTo(7f, 20f); lineTo(7f, 16.5f); lineTo(5.5f, 16.5f)
+                quadTo(3.5f, 16.5f, 3.5f, 14.5f); lineTo(3.5f, 6.5f)
+                quadTo(3.5f, 4.5f, 5.5f, 4.5f)
+                close()
+            }
+        }
+    }
+
+    /** Suggestion row. */
+    val ArrowUpLeft: ImageVector by lazy {
+        strokeIcon("ArrowUpLeft") {
+            stroke {
+                moveTo(17.5f, 17.5f); lineTo(6.5f, 6.5f)
+                moveTo(6.5f, 13.5f); lineTo(6.5f, 6.5f); lineTo(13.5f, 6.5f)
+            }
+        }
+    }
+
     val More: ImageVector by lazy {
         strokeIcon("More") {
             stroke {

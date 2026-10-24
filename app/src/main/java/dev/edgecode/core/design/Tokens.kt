@@ -43,10 +43,25 @@ object Radius {
     val lg: Dp = 20.dp
     val xl: Dp = 28.dp
     val full: Dp = 1000.dp
+
+    /** Session and connection cards. */
+    val card: Dp = 20.dp
+
+    /** Floating composer surface. */
+    val composer: Dp = 22.dp
+
+    /** Text field and search surface. */
+    val field: Dp = 16.dp
+
+    /** A user turn, with its one clipped corner. */
+    val bubble: Dp = 18.dp
+
+    /** Top profile of a modal sheet. */
+    val sheet: Dp = 28.dp
 }
 
 object Size {
-    val topBar: Dp = 56.dp
+    val topBar: Dp = 52.dp
 
     /** Standard touch target. Matches the platform's 48dp minimum. */
     val touch: Dp = 48.dp
@@ -56,14 +71,23 @@ object Size {
      * 48dp would visibly bloat the row. Still well above the point where taps
      * start to miss.
      */
-    val touchSm: Dp = 44.dp
+    val touchSm: Dp = 36.dp
 
-    val icon: Dp = 20.dp
-    val iconSm: Dp = 16.dp
-    val iconLg: Dp = 24.dp
-    val iconXl: Dp = 32.dp
+    val icon: Dp = 18.dp
+    val iconSm: Dp = 14.dp
+    val iconLg: Dp = 22.dp
+    val iconXl: Dp = 28.dp
     val statusDot: Dp = 7.dp
     val attachment: Dp = 72.dp
+
+    /** Leading tile in a session or connection card. */
+    val cardIcon: Dp = 36.dp
+
+    /** The visual send/stop control; its touch target stays at [touch]. */
+    val send: Dp = 34.dp
+
+    /** Brand mark in the list header. */
+    val mark: Dp = 28.dp
 
     /**
      * How tall the composer grows before it starts scrolling internally. Six
@@ -78,10 +102,10 @@ object Size {
      * Circular control in the floating transcript header. Sized so a full row of
      * them reads as one object rather than three separate buttons.
      */
-    val control: Dp = 44.dp
+    val control: Dp = 36.dp
 
     /** Circular control tucked inside the composer pill. */
-    val controlSm: Dp = 38.dp
+    val controlSm: Dp = 32.dp
 }
 
 /**
