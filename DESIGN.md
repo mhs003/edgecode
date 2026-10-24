@@ -162,12 +162,15 @@ Rules:
   reserve their height in the transcript.
 - **User turns** — tonal, hairline, 16/6 radius, compact 14sp body, right
   aligned, never wider than 86%.
-- **Assistant turns** — bare text. A settled turn shows only Copy. Session
-  statistics live in the overflow menu, not under every reply.
+- **Assistant turns** — bare text. A settled turn shows only Copy, which turns
+  into a tick for a moment after use. Session statistics live in the overflow
+  menu, not under every reply.
 - **Reasoning and tools** — one-line rows. Expanded bodies use a left rule and
   plain text, not another card.
-- **Code blocks** — rounded tonal block, quiet language/copy chrome, horizontal
-  scroll, and a small floating chevron to reveal a long block.
+- **Code blocks** — rounded tonal block with even padding, quiet language, wrap
+  and copy chrome, horizontal scroll unless wrapped, and a small floating
+  chevron to reveal a long block.
+- **Inline code** — a padded, rounded tonal chip, never a square highlight.
 - **Sheets** — canvas-coloured, 28dp top profile, compact rows, no divider per
   row. Selected rows use the high fill.
 - **Dialogs** — custom `ConfirmDialog` in the product geometry. Do not ship a

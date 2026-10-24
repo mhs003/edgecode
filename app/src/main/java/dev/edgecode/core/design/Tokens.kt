@@ -136,6 +136,9 @@ object Motion {
     const val base = 200
     const val slow = 320
 
+    /** How long a transient confirmation, such as a copied tick, stays visible. */
+    const val confirmation = 2_000L
+
     val standard: Easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
     val emphasized: Easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
 }

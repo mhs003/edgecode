@@ -10,6 +10,21 @@ release workflow uses the section below as the release notes.
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-10-24
+
+### Added
+
+- Copy controls in replies and code blocks cross-fade into a tick with a small
+  scale change for two seconds after copying, instead of raising a toast.
+
+### Changed
+
+- Every code block now has a wrap control; previously only the agent input did.
+- Code block content has breathing room on every edge, including a proper
+  bottom inset when the block ends a tool input.
+- Inline code in markdown is drawn as a padded, rounded chip instead of a
+  square highlight.
+
 ## [1.2.3] - 2026-10-24
 
 ### Fixed

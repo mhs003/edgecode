@@ -39,8 +39,8 @@ import dev.edgecode.core.util.rememberCopyAction
  *
  * Chrome is one quiet header line — language left, copy right — because the code
  * is the content and the frame should not compete with it. Long blocks collapse
- * instead of pushing the conversation off screen, and lines never wrap: wrapped
- * code is much harder to read than a horizontal scroll.
+ * instead of pushing the conversation off screen. Lines scroll by default;
+ * wrapping stays available beside copy for prose-like output.
  */
 @Composable
 fun CodeBlock(
@@ -48,7 +48,6 @@ fun CodeBlock(
     language: String? = null,
     modifier: Modifier = Modifier,
     maxLines: Int = 22,
-    showWrapToggle: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
     val edge = LocalEdgeColors.current
@@ -92,22 +91,18 @@ fun CodeBlock(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            if (showWrapToggle) {
-                IconAction(
-                    icon = EdgeIcons.Wrap,
-                    contentDescription = if (wrapped) "Unwrap lines" else "Wrap lines",
-                    onClick = { wrapped = !wrapped },
-                    size = Size.controlSm,
-                    iconSize = Size.iconSm,
-                    tint = if (wrapped) scheme.primary else edge.faint,
-                )
-            }
             IconAction(
-                icon = EdgeIcons.Copy,
-                contentDescription = "Copy code",
-                onClick = { copy("code", code) },
+                icon = EdgeIcons.Wrap,
+                contentDescription = if (wrapped) "Unwrap lines" else "Wrap lines",
+                onClick = { wrapped = !wrapped },
                 size = Size.controlSm,
                 iconSize = Size.iconSm,
+                tint = if (wrapped) scheme.primary else edge.faint,
+            )
+            CopyButton(
+                copied = copy.copied,
+                contentDescription = "Copy code",
+                onClick = { copy("code", code) },
             )
         }
 
@@ -115,7 +110,7 @@ fun CodeBlock(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (wrapped) Modifier else Modifier.horizontalScroll(scroll))
-                .padding(horizontal = Space.md, vertical = Space.xs),
+                .padding(start = Space.md, end = Space.md, top = Space.sm, bottom = Space.md),
         ) {
             Text(
                 text = highlighted,

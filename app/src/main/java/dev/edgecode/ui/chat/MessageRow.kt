@@ -40,8 +40,8 @@ import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
 import dev.edgecode.core.design.Stroke
+import dev.edgecode.core.design.components.CopyButton
 import dev.edgecode.core.design.components.ErrorNotice
-import dev.edgecode.core.design.components.IconAction
 import dev.edgecode.core.design.components.MarkdownText
 import dev.edgecode.core.model.Attachment
 import dev.edgecode.core.model.AttachmentKind
@@ -169,13 +169,10 @@ private fun AssistantMessageRow(
         // figure, and everything else that describes the session belongs in the
         // menu rather than repeated under every turn.
         if (!message.streaming && plainText.isNotBlank()) {
-            IconAction(
-                icon = EdgeIcons.Copy,
+            CopyButton(
+                copied = copy.copied,
                 contentDescription = "Copy reply",
                 onClick = { copy("reply", plainText) },
-                size = Size.controlSm,
-                iconSize = Size.iconSm,
-                tint = edge.faint,
                 // Pulled left by half the difference between the touch target
                 // and the glyph, so the icon optically lines up with the text
                 // it belongs to rather than with its own padding.

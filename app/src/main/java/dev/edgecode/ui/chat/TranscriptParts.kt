@@ -311,7 +311,7 @@ private fun ToolCallRow(
                     }
                 }
                 state.input?.let { input ->
-                    DetailBlock(label = "Input", body = input, wrapToggle = true)
+                    DetailBlock(label = "Input", body = input)
                 }
                 state.output?.let { output ->
                     DetailBlock(
@@ -408,7 +408,7 @@ private fun QuestionAnswerBlock(
 }
 
 @Composable
-private fun DetailBlock(label: String, body: String, wrapToggle: Boolean = false) {
+private fun DetailBlock(label: String, body: String) {
     Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
         Text(
             text = label.uppercase(),
@@ -419,7 +419,6 @@ private fun DetailBlock(label: String, body: String, wrapToggle: Boolean = false
             code = body,
             language = null,
             maxLines = 14,
-            showWrapToggle = wrapToggle,
         )
     }
 }
