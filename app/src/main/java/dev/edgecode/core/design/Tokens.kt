@@ -71,29 +71,30 @@ object Size {
      * 48dp would visibly bloat the row. Still well above the point where taps
      * start to miss.
      */
-    val touchSm: Dp = 30.dp
+    val touchSm: Dp = 36.dp
 
-    val icon: Dp = 17.dp
-    val iconSm: Dp = 13.dp
-    val iconLg: Dp = 20.dp
-    val iconXl: Dp = 26.dp
+    val icon: Dp = 20.dp
+    val iconSm: Dp = 15.dp
+    val iconMd: Dp = 18.dp
+    val iconLg: Dp = 24.dp
+    val iconXl: Dp = 28.dp
     val statusDot: Dp = 7.dp
     val attachment: Dp = 56.dp
 
     /** Leading tile in a session or connection card. */
-    val cardIcon: Dp = 32.dp
+    val cardIcon: Dp = 36.dp
 
     /** The visual send/stop control. */
-    val send: Dp = 30.dp
+    val send: Dp = 38.dp
 
     /** Brand mark in empty states and grouped surfaces. */
-    val mark: Dp = 26.dp
+    val mark: Dp = 28.dp
 
     /** Standard filled/outlined button. */
-    val button: Dp = 38.dp
+    val button: Dp = 44.dp
 
     /** Text input and compact search surface. */
-    val input: Dp = 40.dp
+    val input: Dp = 44.dp
 
     /**
      * How tall the composer grows before it starts scrolling internally. Six
@@ -108,10 +109,10 @@ object Size {
      * Circular control in the floating transcript header. Sized so a full row of
      * them reads as one object rather than three separate buttons.
      */
-    val control: Dp = 32.dp
+    val control: Dp = 40.dp
 
     /** Smallest icon-only control, used inside rows. */
-    val controlSm: Dp = 28.dp
+    val controlSm: Dp = 32.dp
 }
 
 /**

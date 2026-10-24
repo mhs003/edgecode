@@ -49,13 +49,13 @@ Density follows the task.
 
 - Chat body: 14sp/22sp, generous line height, one reading measure.
 - Metadata, labels and paths: 10–12sp, still at AA contrast.
-- Session and connection cards: 8–10dp internal padding, 32dp leading tile,
+- Session and connection cards: 8–10dp internal padding, 36dp leading tile,
   16dp outer radius.
-- Screen headers: 50dp. App-bar icons use a 32dp bare control.
-- Buttons: 38dp high. Icon-only controls: 32dp in bars, 28dp inside rows. The
-  send control: 30dp. Text fields: 40dp.
-- Do not scale every control up to 48dp. Preserve the visible shape as the hit
-  target and leave enough space around it that taps remain comfortable.
+- Screen headers: 50dp. App-bar icons use a 40dp bare control.
+- Buttons: 44dp high. Icon-only controls: 40dp in bars, 32dp inside rows. The
+  send control: 38dp. Text fields: 44dp.
+- Do not inflate every control to 48dp. The visible control is the hit target;
+  keep it large enough for a confident thumb and leave space around it.
 - Rows in lists are separated by space, not rules. A card may contain a
   divider only where the items inside are genuinely separate choices.
 
@@ -148,13 +148,15 @@ Rules:
 7. Components
 
 - **Top bar** — flat, canvas-coloured, 50dp. Back, search and overflow are bare
-  `BarIcon` controls. A brand mark is optional; the session list uses the
+  `BarIcon` controls with a 40dp target. A brand mark is optional; the session list uses the
   wordmark alone.
 - **Cards** — session and saved-server cards use `surfaceContainerLow`, a 32dp
   circular leading tile and a bare overflow icon. No resting border.
-- **Composer** — a rounded card on the canvas with one hairline. Text on top;
-  below it: attach, model, agent, send. Model and agent are text controls with
-  small icons, not filled pills. The send control is the only filled circle.
+- **Composer** — a rounded card on the canvas with one hairline, inset 14dp from
+  the sides and 12dp from the bottom. Text sits on 16dp of padding; the toolbar
+  below it has 8dp of breathing room around attach, model, agent and send. Model
+  and agent are text controls with small icons, not filled pills. The send
+  control is the only filled circle.
 - **Chat chrome** — a floating row of bare controls over a gradient scrim at the
   top, and the floating composer over a mirrored scrim at the bottom. Both
   reserve their height in the transcript.
@@ -178,8 +180,9 @@ Rules:
 8. Interaction and Motion
 
 - Use short fades and small position changes. `Motion` is the source.
-- Tapping a control shows a short opacity change inside the control. There is no
-  ripple; a circular control must never reveal a square press surface.
+- Tapping a control paints a short tonal overlay inside the control's own shape.
+  There is no ripple; a circular control must never reveal a square press
+  surface.
 - Keep the composer anchored above the keyboard; never let the window pan.
 - Preserve scroll position and follow streaming text only while the reader is at
   the end.

@@ -442,6 +442,7 @@ private fun SavedRow(
                 onClick = onActions,
                 size = Size.controlSm,
                 iconSize = Size.iconSm,
+                circled = true,
             )
         }
     }

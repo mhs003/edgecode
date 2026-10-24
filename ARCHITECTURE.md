@@ -207,7 +207,7 @@ The replacement keeps the useful half of that property explicitly:
 
 | 28 | Theme families are data, not separate layouts | Edge, Catppuccin, Tokyo Night, Gruvbox, Nord, Solarized, Rosé Pine, Everforest and One each map the same semantic roles into a published palette. Light and dark variants are selected by System/light/dark mode, so the layout and component geometry never fork. Rejected: per-theme screens or per-theme component styling |
 | 29 | Every palette is contrast-normalised | Official accents and muted colours are not automatically legible at small sizes. The palette builder derives surfaces and enforces AA on every information-bearing tier before the theme reaches Material. `ContrastTest` runs all families and variants, not only the default |
-| 30 | A control's feedback follows its visible shape | Icon controls use a 32dp box (28dp inside rows); buttons use 38dp; the send control is a 30dp circle. There is no ripple: pressing fades the control in place. Rejected: a larger invisible touch box, whose square ripple visibly exceeded the circle and covered nearby content |
+| 30 | A control's feedback follows its visible shape | Icon controls use a 40dp box (32dp inside rows); buttons use 44dp; the send control is a 38dp circle. There is no ripple: pressing paints a brief tonal overlay inside the control. Rejected: a larger invisible touch box, whose square ripple visibly exceeded the circle and covered nearby content |
 
 ## Invariants
 

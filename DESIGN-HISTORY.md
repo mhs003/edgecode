@@ -18,11 +18,11 @@ monochrome system and optional palettes.
   Rosé Pine, Everforest and One each resolve to the same semantic palette; the
   layout, geometry and type scale never change. Every text tier is normalised to
   AA contrast before the palette is used.
-- **Compact controls.** App-bar actions are bare 32dp icon targets; buttons are
-  38dp; the send control is 30dp. The previous filled 44dp circles around every
+- **Compact controls.** App-bar actions are bare 40dp icon targets; buttons are
+  44dp; the send control is 38dp. The previous filled 44dp circles around every
   header action were removed: they read as the largest objects on the screen and
-  their ripples did not follow the circle. Touch feedback is a short opacity dip
-  with no ripple.
+  their ripples did not follow the circle. Touch feedback is a short tonal
+  overlay inside the control, with no ripple.
 - **Floating chat chrome stays.** The top controls float over a gradient scrim,
   and the composer floats over a mirrored scrim. The scrims are functional: the
   transcript runs underneath and dissolves into the controls.

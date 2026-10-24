@@ -436,11 +436,13 @@ fun BarIcon(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     tint: Color? = null,
+    size: androidx.compose.ui.unit.Dp = Size.control,
+    iconSize: androidx.compose.ui.unit.Dp = Size.icon,
 ) {
     val scheme = MaterialTheme.colorScheme
     Box(
         modifier = modifier
-            .size(Size.control)
+            .size(size)
             .clip(androidx.compose.foundation.shape.CircleShape)
             .tappable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -449,7 +451,7 @@ fun BarIcon(
             imageVector = icon,
             contentDescription = contentDescription,
             tint = if (enabled) tint ?: scheme.onSurface else LocalEdgeColors.current.faint,
-            modifier = Modifier.size(Size.icon),
+            modifier = Modifier.size(iconSize),
         )
     }
 }
@@ -490,7 +492,7 @@ fun EdgeSwitch(
     )
     Box(
         modifier = modifier
-            .size(width = 34.dp, height = 20.dp)
+            .size(width = 38.dp, height = 22.dp)
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.full))
             .background(track)
             .border(
@@ -511,7 +513,7 @@ fun EdgeSwitch(
         Box(
             modifier = Modifier
                 .offset(x = offset)
-                .size(16.dp)
+                .size(18.dp)
                 .clip(CircleShape)
                 .background(thumb),
         )

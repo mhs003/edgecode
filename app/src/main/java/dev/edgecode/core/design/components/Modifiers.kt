@@ -15,14 +15,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Color
+import dev.edgecode.core.design.LocalEdgeColors
 
 /**
  * Standard tap behaviour.
  *
- * The interface deliberately has no ripple: a ripple is a platform default that
- * expands beyond small controls and reads as a second, square surface. Press
- * feedback is a short opacity dip inside the control's own bounds instead.
+ * There is no ripple: a ripple expands beyond small controls and reads as a
+ * second, square surface. Pressing paints a short tonal overlay inside the
+ * control's own shape instead — the same idea as a hover/pressed background in
+ * a web design system, without the platform splash.
+ *
+ * The caller's `clip` (before this modifier) determines that shape.
  */
 fun Modifier.tappable(
     enabled: Boolean = true,
@@ -30,18 +35,25 @@ fun Modifier.tappable(
 ): Modifier = composed {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val alpha by animateFloatAsState(
-        targetValue = if (enabled && pressed) 0.58f else 1f,
-        label = "pressAlpha",
+    val dark = LocalEdgeColors.current.isDark
+    val strength by animateFloatAsState(
+        targetValue = if (enabled && pressed) (if (dark) 0.10f else 0.065f) else 0f,
+        label = "pressOverlay",
     )
+    val overlay = if (dark) Color.White else Color.Black
     this
-        .graphicsLayer { this.alpha = alpha }
         .clickable(
             interactionSource = interaction,
             indication = null,
             enabled = enabled,
             onClick = onClick,
         )
+        .drawWithContent {
+            drawContent()
+            if (strength > 0f) {
+                drawRect(overlay.copy(alpha = strength))
+            }
+        }
 }
 
 /**

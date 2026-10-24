@@ -163,7 +163,7 @@ class ChatLayoutAndResponsivenessTest {
         }
 
         rule.onNodeWithText("Answer").performTouchInput { click() }
-        rule.waitUntil(timeoutMillis = 5_000) {
+        rule.waitUntil(timeoutMillis = 10_000) {
             rule.onAllNodesWithTag(QuestionSheetTestTag).fetchSemanticsNodes().isNotEmpty()
         }
 

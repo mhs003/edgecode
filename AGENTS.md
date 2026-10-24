@@ -121,8 +121,8 @@ app/src/main/java/dev/edgecode/
 The default is compact monochrome. Optional theme families change the palette,
 never the layout. Match that.
 
-- **Compact before spacious.** Chat body is `14/22`; app-bar icons are bare 32dp
-  controls; buttons are 38dp; cards use 8–10dp padding. Do not inflate controls
+- **Compact before spacious.** Chat body is `14/22`; app-bar icons are bare 40dp
+  controls; buttons are 44dp; cards use 8–10dp padding. Do not inflate controls
   to Material's default footprint.
 - **One canvas, a small tonal set.** `background == surface` is the canvas;
   `surfaceContainerLow` is the object/composer fill; `surfaceContainerHigh` is
@@ -139,8 +139,8 @@ never the layout. Match that.
   Do not make a short prompt fill the width.
 - **Controls look like their action.** Use `BarIcon` for app-bar actions;
   `CircleButton` only for genuinely filled circular actions such as send.
-  Touch feedback is a short opacity change inside the control; there is no
-  ripple. The visible shape is the hit target.
+  Touch feedback is a short tonal overlay inside the control's shape; there is
+  no ripple. The visible shape is the hit target.
 - **Typography comes from `EdgeTypography` and `EdgeText`.** Fira Code and the
   `calt`/`liga` feature string live only in `core/design/Fonts.kt`; feature code
   sets neither `fontFamily` nor `fontFeatureSettings`. Tracking stays `0`.

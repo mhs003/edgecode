@@ -445,7 +445,7 @@ fun ChatScreen(
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
                     .topSystemInset()
-                    .padding(horizontal = Space.md, vertical = Space.sm),
+                    .padding(horizontal = Space.md, vertical = Space.xs + 1.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 BarIcon(

@@ -65,7 +65,14 @@ fun EdgeTopBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = Size.topBar)
-                .padding(start = if (onBack != null || leading != null) Space.xxs else Space.gutter, end = Space.xs),
+                .padding(
+                    start = when {
+                        onBack != null -> Space.md
+                        leading != null -> Space.xxs
+                        else -> Space.gutter
+                    },
+                    end = Space.md,
+                ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (onBack != null) {

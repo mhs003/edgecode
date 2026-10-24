@@ -99,6 +99,7 @@ val EdgeTypography = Typography(
 /** Extended text styles that sit outside the Material scale. */
 object EdgeText {
     val chat = monoStyle(size = 14, lineHeight = 22)
+    val composer = monoStyle(size = 13, lineHeight = 20)
     val code = monoStyle()
     val codeSmall = monoStyle(size = 12, lineHeight = 18)
     val meta = monoStyle(size = 12, lineHeight = 16)

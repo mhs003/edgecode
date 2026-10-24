@@ -117,7 +117,12 @@ fun Composer(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = Space.sm, end = Space.sm, top = Space.xs, bottom = Space.sm)
+            .padding(
+                start = Space.md + 2.dp,
+                end = Space.md + 2.dp,
+                top = Space.xs,
+                bottom = Space.md + 2.dp,
+            )
             .testTag(ComposerTestTag),
     ) {
         AnimatedVisibility(
@@ -146,7 +151,7 @@ fun Composer(
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
-                textStyle = EdgeText.chat.copy(color = scheme.onSurface),
+                textStyle = EdgeText.composer.copy(color = scheme.onSurface),
                 cursorBrush = SolidColor(scheme.primary),
                 interactionSource = interaction,
                 keyboardOptions = KeyboardOptions(
@@ -159,7 +164,7 @@ fun Composer(
                 maxLines = Size.composerMaxLines,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = Space.md, end = Space.md, top = Space.sm + 2.dp, bottom = Space.xxs)
+                    .padding(start = Space.lg, end = Space.lg, top = Space.md + 2.dp, bottom = Space.sm)
                     .testTag(ComposerInputTestTag)
                     .onPreviewKeyEvent { event ->
                         if (sendOnEnter &&
@@ -177,8 +182,8 @@ fun Composer(
                     Box {
                         if (value.isEmpty()) {
                             Text(
-                                text = "Message EdgeCode…",
-                                style = EdgeText.chat,
+                                text = "Type something...",
+                                style = EdgeText.composer,
                                 color = edge.faint,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -192,7 +197,12 @@ fun Composer(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = Space.xxs, end = Space.xxs, bottom = Space.xxs),
+                    .padding(
+                        start = Space.sm,
+                        end = Space.sm,
+                        top = Space.xxs,
+                        bottom = Space.sm,
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(
@@ -204,6 +214,8 @@ fun Composer(
                         contentDescription = "Add attachment",
                         onClick = onPickAttachment,
                         tint = scheme.onSurfaceVariant,
+                        size = 34.dp,
+                        iconSize = Size.iconMd,
                     )
                     ComposerChip(
                         label = modelLabel,
@@ -220,7 +232,7 @@ fun Composer(
                     }
                 }
 
-                Spacer(Modifier.width(Space.xs))
+                Spacer(Modifier.width(Space.sm))
 
                 val active = streaming || value.isNotBlank() || attachments.isNotEmpty()
                 CircleButton(
@@ -228,7 +240,7 @@ fun Composer(
                     contentDescription = if (streaming) "Stop" else "Send",
                     onClick = { if (streaming) onStop() else onSend() },
                     size = Size.send,
-                    iconSize = if (streaming) Size.iconSm else Size.icon,
+                    iconSize = if (streaming) Size.iconSm else Size.iconMd,
                     fill = if (active) scheme.primary else scheme.surfaceContainerHigh,
                     tint = if (active) scheme.onPrimary else edge.faint,
                     enabled = streaming || value.isNotBlank() || attachments.isNotEmpty(),
@@ -259,10 +271,10 @@ private fun ComposerChip(
     val content = if (emphasized) scheme.onSurface else scheme.onSurfaceVariant
     Row(
         modifier = modifier
-            .heightIn(min = 30.dp)
+            .heightIn(min = 26.dp)
             .clip(RoundedCornerShape(Radius.sm))
             .tappable(onClick = onClick)
-            .padding(horizontal = Space.xs),
+            .padding(horizontal = Space.xs + 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (leading != null) {
@@ -276,7 +288,7 @@ private fun ComposerChip(
         }
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
+            style = EdgeText.meta,
             fontWeight = if (emphasized) FontWeight.Medium else FontWeight.Normal,
             color = content,
             maxLines = 1,

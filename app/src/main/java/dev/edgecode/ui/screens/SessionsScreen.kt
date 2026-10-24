@@ -510,6 +510,7 @@ private fun SessionRow(
             onClick = onActions,
             size = Size.controlSm,
             iconSize = Size.iconSm,
+            circled = true,
         )
     }
 }
