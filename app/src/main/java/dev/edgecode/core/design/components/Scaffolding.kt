@@ -142,8 +142,8 @@ fun EdgeSearchBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = Size.topBar)
-            .padding(horizontal = Space.md, vertical = Space.sm),
+            .height(Size.topBar)
+            .padding(horizontal = Space.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BarIcon(

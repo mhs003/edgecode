@@ -1,6 +1,5 @@
 package dev.edgecode.core.design.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
@@ -41,13 +40,6 @@ fun IconAction(
                     androidx.compose.foundation.shape.CircleShape
                 } else {
                     MaterialTheme.shapes.extraSmall
-                },
-            )
-            .then(
-                if (circled) {
-                    Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                } else {
-                    Modifier
                 },
             )
             .tappable(enabled = enabled, onClick = onClick),

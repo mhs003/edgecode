@@ -174,7 +174,7 @@ private fun AssistantMessageRow(
                 contentDescription = "Copy reply",
                 onClick = { copy("reply", plainText) },
                 size = Size.controlSm,
-                iconSize = Size.iconSm,
+                iconSize = Size.iconMd,
                 tint = edge.faint,
                 // Pulled left by half the difference between the touch target
                 // and the glyph, so the icon optically lines up with the text

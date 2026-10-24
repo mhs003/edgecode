@@ -432,24 +432,9 @@ private fun SessionRow(
             .clip(RoundedCornerShape(Radius.card))
             .background(scheme.surfaceContainerLow)
             .tappable(onClick = onOpen)
-            .padding(start = Space.sm + 2.dp, end = Space.xxs, top = Space.sm, bottom = Space.sm),
+            .padding(start = Space.md, end = Space.xxs, top = Space.sm, bottom = Space.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(Size.cardIcon)
-                .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(scheme.surfaceContainerHigh),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = EdgeIcons.Chat,
-                contentDescription = null,
-                tint = scheme.onSurfaceVariant,
-                modifier = Modifier.size(Size.icon),
-            )
-        }
-        Spacer(Modifier.width(Space.sm + 2.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,

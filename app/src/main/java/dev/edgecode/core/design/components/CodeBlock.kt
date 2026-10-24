@@ -98,7 +98,7 @@ fun CodeBlock(
                     contentDescription = if (wrapped) "Unwrap lines" else "Wrap lines",
                     onClick = { wrapped = !wrapped },
                     size = Size.touchSm,
-                    iconSize = Size.iconSm,
+                    iconSize = Size.iconMd,
                     tint = if (wrapped) scheme.primary else edge.faint,
                 )
             }
@@ -107,7 +107,7 @@ fun CodeBlock(
                 contentDescription = "Copy code",
                 onClick = { copy("code", code) },
                 size = Size.touchSm,
-                iconSize = Size.iconSm,
+                iconSize = Size.iconMd,
             )
         }
 
