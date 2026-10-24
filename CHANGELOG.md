@@ -10,6 +10,64 @@ release workflow uses the section below as the release notes.
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-10-24
+
+### Added
+
+- Copy controls in replies and code blocks cross-fade into a tick with a small
+  scale change for two seconds after copying, instead of raising a toast.
+
+### Changed
+
+- Every code block now has a wrap control; previously only the agent input did.
+- Code block content has breathing room on every edge, including a proper
+  bottom inset when the block ends a tool input.
+- Inline code in markdown is drawn as a padded, rounded chip instead of a
+  square highlight.
+
+## [1.2.3] - 2026-10-24
+
+### Fixed
+
+- The refresh and copy glyphs now use their conventional shapes: a circular
+  two-arrow refresh and overlapping sheets for copy. The file-attachment glyph
+  is a paperclip rather than a plus inside a box.
+- Refresh is optically sized to match the other sheet icons. Copy and wrap in
+  the chat transcript and code header now use the compact 32dp control and a
+  15dp glyph.
+
+## [1.2.2] - 2026-10-24
+
+### Added
+
+- Nine theme families: Edge, Catppuccin, Tokyo Night, Gruvbox, Nord, Solarized,
+  Rosé Pine, Everforest and One. Each has a light and dark variant, and the
+  existing System/light/dark mode selects between them. The choice is persisted.
+- A compact monochrome default palette. The previous teal accent is gone unless
+  a themed family supplies one.
+
+### Changed
+
+- The interface is smaller and calmer: bare app-bar icons, 42dp buttons, 36dp
+  icon controls, a 34dp send control, a tighter type scale, compact cards and
+  picker rows.
+- Chat keeps its floating header and composer, now over functional scrims with
+  bare controls. The composer remains one rounded card with the model, agent
+  and send controls inside it.
+- Assistant replies show Copy only; model and response statistics stay in the
+  session overflow. Session rows show the leaf directory, model and relative
+  time without truncating the time.
+- Settings gains a theme-family picker with a four-dot preview. Connections,
+  sessions, reasonings, tools, code blocks, sheets, dialogs and switches use
+  the product's own surfaces and geometry.
+
+### Fixed
+
+- Touch feedback is now a short tonal overlay inside the control's shape, with
+  no ripple, so a circular control no longer reveals a larger square press
+  surface.
+- Every theme variant is contrast-normalised and checked by `ContrastTest`.
+
 ## [1.2.1] - 2026-10-23
 
 ### Changed

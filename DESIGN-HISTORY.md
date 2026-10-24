@@ -7,7 +7,49 @@ can build on it rather than relearn it.
 
 ---
 
-## Current build (1.0.x)
+## Monochrome and theme families (1.2.2, 2026-10)
+
+This pass replaced the oversized, teal-accented control language with a compact
+monochrome system and optional palettes.
+
+- **Default is monochrome.** Warm canvas, near-black/near-white text, a small
+  tonal set. No brand accent in the default family.
+- **Themes are data.** Edge, Catppuccin, Tokyo Night, Gruvbox, Nord, Solarized,
+  Rosé Pine, Everforest and One each resolve to the same semantic palette; the
+  layout, geometry and type scale never change. Every text tier is normalised to
+  AA contrast before the palette is used.
+- **Compact controls.** App-bar actions are bare 40dp icon targets; buttons are
+  44dp; the send control is 38dp. The previous filled 44dp circles around every
+  header action were removed: they read as the largest objects on the screen and
+  their ripples did not follow the circle. Touch feedback is a short tonal
+  overlay inside the control, with no ripple.
+- **Floating chat chrome stays.** The top controls float over a gradient scrim,
+  and the composer floats over a mirrored scrim. The scrims are functional: the
+  transcript runs underneath and dissolves into the controls.
+- **Objects get cards, prose does not.** Session and saved-server rows are 16dp
+  cards. Assistant replies remain bare text, user turns are compact 16/6 bubbles,
+  and the composer is one 20dp card with a hairline.
+- **Type is compact.** Chat body is 14/22; screen titles are 16–17; labels are
+  10–12. Session metadata keeps its own line so the model and timestamp are not
+  truncated by a long title.
+- **Stock surfaces are gone.** Confirmations, switches, pickers and action rows
+  use the product's own geometry. Sheets use a canvas surface and compact rows.
+
+Rejected in this pass:
+
+| Decision | Why |
+|---|---|
+| Keeping teal as the default accent | The identity reads better in pure tone; colour is now a user-selected family |
+| Filled 44–48dp circles for back/new/menu | Too heavy for the content and their square hit/ripple area covered the transcript |
+| One meta footer under every reply | Repeated session facts; copy is the only per-turn action |
+| Full-width path line in a session card | It crowded out the model and time; the leaf directory is enough |
+| Context chip in the floating header | Too large and ambiguous; context stays in the overflow statistics |
+| A theme grid of full cards | A row with a four-dot preview and two variant names is faster to scan |
+| Material dialogs and switches | Their surfaces, radii and accents fought the palette |
+
+---
+
+## Build 1.0.x (historical)
 
 The shipped v1 interface:
 

@@ -48,6 +48,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -56,6 +57,7 @@ import dev.edgecode.core.design.EdgeText
 import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.Size
+import dev.edgecode.core.design.components.BarIcon
 import dev.edgecode.core.design.Space
 import dev.edgecode.core.design.Stroke
 import dev.edgecode.core.design.components.CircleButton
@@ -115,7 +117,12 @@ fun Composer(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = Space.md, end = Space.md, top = Space.sm, bottom = Space.md)
+            .padding(
+                start = Space.md + 2.dp,
+                end = Space.md + 2.dp,
+                top = Space.xs,
+                bottom = Space.md + 2.dp,
+            )
             .testTag(ComposerTestTag),
     ) {
         AnimatedVisibility(
@@ -133,13 +140,18 @@ fun Composer(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(Radius.xl))
-                .background(scheme.surfaceContainer),
+                .clip(RoundedCornerShape(Radius.composer))
+                .background(scheme.surfaceContainerLow)
+                .border(
+                    Stroke.hairline,
+                    scheme.outlineVariant,
+                    RoundedCornerShape(Radius.composer),
+                ),
         ) {
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = scheme.onSurface),
+                textStyle = EdgeText.composer.copy(color = scheme.onSurface),
                 cursorBrush = SolidColor(scheme.primary),
                 interactionSource = interaction,
                 keyboardOptions = KeyboardOptions(
@@ -147,12 +159,12 @@ fun Composer(
                     imeAction = ImeAction.Default,
                 ),
                 // Grows with the prompt up to a fixed number of lines, then
-                // scrolls inside the pill. Without a cap a pasted block or a
+                // scrolls inside the card. Without a cap a pasted block or a
                 // run of blank lines pushes the composer over the transcript.
                 maxLines = Size.composerMaxLines,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = Space.lg, end = Space.lg, top = Space.lg, bottom = Space.md)
+                    .padding(start = Space.lg, end = Space.lg, top = Space.md + 2.dp, bottom = Space.sm)
                     .testTag(ComposerInputTestTag)
                     .onPreviewKeyEvent { event ->
                         if (sendOnEnter &&
@@ -170,8 +182,8 @@ fun Composer(
                     Box {
                         if (value.isEmpty()) {
                             Text(
-                                text = "Ask, or / for commands",
-                                style = MaterialTheme.typography.bodyLarge,
+                                text = "Type something...",
+                                style = EdgeText.composer,
                                 color = edge.faint,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -185,55 +197,52 @@ fun Composer(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = Space.sm, end = Space.sm, bottom = Space.sm),
+                    .padding(
+                        start = Space.sm,
+                        end = Space.sm,
+                        top = Space.xxs,
+                        bottom = Space.sm,
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Two rows so the send button is the only unweighted element
-                // competing for the trailing edge: inside the left group the
-                // model chip is the single weighted child, which means it is
-                // the one that ellipsizes instead of crushing its neighbours.
                 Row(
                     modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Space.xs),
                 ) {
-                    CircleButton(
-                        icon = EdgeIcons.Attach,
+                    BarIcon(
+                        icon = EdgeIcons.Plus,
                         contentDescription = "Add attachment",
                         onClick = onPickAttachment,
-                        size = Size.controlSm,
-                        iconSize = 18.dp,
-                        fill = scheme.surfaceContainerHigh,
+                        tint = scheme.onSurfaceVariant,
+                        size = 34.dp,
+                        iconSize = Size.iconMd,
                     )
                     ComposerChip(
                         label = modelLabel,
                         onClick = onModelClick,
+                        trailing = EdgeIcons.ChevronDown,
+                        emphasized = true,
                         modifier = Modifier.weight(1f, fill = false),
                     )
-                    ComposerChip(
-                        label = agentLabel,
-                        onClick = onAgentClick,
-                    )
+                    if (agentLabel.isNotBlank()) {
+                        ComposerChip(
+                            label = agentLabel,
+                            onClick = onAgentClick,
+                        )
+                    }
                 }
 
-                Spacer(Modifier.width(Space.xs))
+                Spacer(Modifier.width(Space.sm))
 
+                val active = streaming || value.isNotBlank() || attachments.isNotEmpty()
                 CircleButton(
                     icon = if (streaming) EdgeIcons.Stop else EdgeIcons.Send,
                     contentDescription = if (streaming) "Stop" else "Send",
                     onClick = { if (streaming) onStop() else onSend() },
-                    size = Size.controlSm,
-                    iconSize = if (streaming) Size.iconSm else 18.dp,
-                    fill = if (streaming || value.isNotBlank() || attachments.isNotEmpty()) {
-                        scheme.primary
-                    } else {
-                        scheme.surfaceContainerHigh
-                    },
-                    tint = if (streaming || value.isNotBlank() || attachments.isNotEmpty()) {
-                        scheme.onPrimary
-                    } else {
-                        edge.faint
-                    },
+                    size = Size.send,
+                    iconSize = Size.iconMd,
+                    fill = if (active) scheme.primary else scheme.surfaceContainerHigh,
+                    tint = if (active) scheme.onPrimary else edge.faint,
                     enabled = streaming || value.isNotBlank() || attachments.isNotEmpty(),
                 )
             }
@@ -242,43 +251,57 @@ fun Composer(
 }
 
 /**
- * Text-only pill, matching how current clients present the active model. The
- * two chips share a row with the attach and send controls, so an icon in each
- * cost 48dp that the model name needed more than the decoration did.
+ * A text control inside the composer.
+ *
+ * The target treats the active model as a label with a disclosure chevron, not
+ * as a filled pill. Keeping the fill off the row leaves the composer quiet and
+ * gives the send control the only strong shape.
  */
 @Composable
 private fun ComposerChip(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    leading: ImageVector? = null,
+    trailing: ImageVector? = null,
+    emphasized: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
-    // The pill is 38dp, which is under the 48dp minimum touch target, so the
-    // gesture sits on a taller box and the pill is drawn centred inside it.
-    // Otherwise a tap just outside the pill — the most natural place to aim —
-    // does nothing. The row is already 48dp tall from the circular controls, so
-    // this costs no layout.
-    Box(
+    val edge = LocalEdgeColors.current
+    val content = if (emphasized) scheme.onSurface else scheme.onSurfaceVariant
+    Row(
         modifier = modifier
-            .heightIn(min = Size.touch)
-            .tappable(onClick = onClick),
-        contentAlignment = Alignment.Center,
+            .heightIn(min = 26.dp)
+            .clip(RoundedCornerShape(Radius.sm))
+            .tappable(onClick = onClick)
+            .padding(horizontal = Space.xs + 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .heightIn(min = Size.controlSm)
-                .clip(RoundedCornerShape(Radius.full))
-                .background(scheme.surfaceContainerHigh)
-                .padding(horizontal = Space.md),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = scheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 132.dp),
+        if (leading != null) {
+            Icon(
+                imageVector = leading,
+                contentDescription = null,
+                tint = edge.faint,
+                modifier = Modifier.size(12.dp),
+            )
+            Spacer(Modifier.width(Space.xs))
+        }
+        Text(
+            text = label,
+            style = EdgeText.meta,
+            fontWeight = if (emphasized) FontWeight.Medium else FontWeight.Normal,
+            color = content,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = if (emphasized) 208.dp else 64.dp),
+        )
+        if (trailing != null) {
+            Spacer(Modifier.width(Space.xxs))
+            Icon(
+                imageVector = trailing,
+                contentDescription = null,
+                tint = edge.faint,
+                modifier = Modifier.size(12.dp),
             )
         }
     }
@@ -311,7 +334,7 @@ private fun SlashCommandList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .tappable { onSelect(command) }
-                        .padding(horizontal = Space.lg, vertical = Space.sm),
+                        .padding(horizontal = Space.md, vertical = Space.xs + 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Space.md),
                 ) {

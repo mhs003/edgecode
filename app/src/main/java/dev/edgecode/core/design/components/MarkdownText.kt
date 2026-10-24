@@ -21,21 +21,28 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import dev.edgecode.core.design.EdgeIcons
+import dev.edgecode.core.design.EdgeText
 import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Space
 import dev.edgecode.core.design.Stroke
 import dev.edgecode.core.markdown.InlineColors
+import dev.edgecode.core.markdown.MD_CODE_TAG
 import dev.edgecode.core.markdown.Markdown
 import dev.edgecode.core.markdown.MdBlock
 import dev.edgecode.core.markdown.MdItem
@@ -52,9 +59,10 @@ import dev.edgecode.core.markdown.renderInline
 fun MarkdownText(
     text: String,
     modifier: Modifier = Modifier,
-    style: TextStyle = MaterialTheme.typography.bodyLarge,
+    style: TextStyle = EdgeText.chat,
     muted: Boolean = false,
     codeBlockMaxLines: Int = 22,
+    fillWidth: Boolean = true,
 ) {
     val scheme = MaterialTheme.colorScheme
     val edge = LocalEdgeColors.current
@@ -70,8 +78,8 @@ fun MarkdownText(
     }
 
     Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(Space.sm),
+        modifier = modifier.then(if (fillWidth) Modifier.fillMaxWidth() else Modifier),
+        verticalArrangement = Arrangement.spacedBy(Space.md),
     ) {
         blocks.forEachIndexed { index, block ->
             val isFirst = index == 0
@@ -128,12 +136,49 @@ private fun InlineText(
     color: Color = Color.Unspecified,
 ) {
     val annotated = remember(text, colors) { renderInline(text, colors) }
+    val codeRanges = remember(annotated) {
+        annotated.getStringAnnotations(MD_CODE_TAG, 0, annotated.length)
+    }
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     Text(
         text = annotated,
         style = style,
-        modifier = modifier,
+        modifier = modifier.drawBehind {
+            val result = layout ?: return@drawBehind
+            if (codeRanges.isEmpty() || result.layoutInput.text.length != annotated.length) {
+                return@drawBehind
+            }
+            val horizontalPadding = 3.dp.toPx()
+            val verticalPadding = 1.dp.toPx()
+            val corner = CornerRadius(4.dp.toPx())
+            codeRanges.forEach { range ->
+                if (range.end <= range.start) return@forEach
+                val firstLine = result.getLineForOffset(range.start)
+                val lastLine = result.getLineForOffset((range.end - 1).coerceAtLeast(range.start))
+                for (line in firstLine..lastLine) {
+                    val start = maxOf(range.start, result.getLineStart(line))
+                    val end = minOf(range.end, result.getLineEnd(line))
+                    if (end <= start) continue
+                    val first = result.getBoundingBox(start)
+                    val last = result.getBoundingBox(end - 1)
+                    val left = minOf(first.left, last.left) - horizontalPadding
+                    val right = maxOf(first.right, last.right) + horizontalPadding
+                    val top = result.getLineTop(line) + verticalPadding
+                    val bottom = result.getLineBottom(line) - verticalPadding
+                    if (right > left && bottom > top) {
+                        drawRoundRect(
+                            color = colors.codeBackground,
+                            topLeft = Offset(left, top),
+                            size = Size(right - left, bottom - top),
+                            cornerRadius = corner,
+                        )
+                    }
+                }
+            }
+        },
         maxLines = maxLines,
         color = color,
+        onTextLayout = { layout = it },
     )
 }
 

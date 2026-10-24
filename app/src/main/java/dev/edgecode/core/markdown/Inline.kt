@@ -14,6 +14,9 @@ import androidx.compose.ui.unit.TextUnit
 /** Tag used for clickable links inside rendered markdown. */
 const val MD_URL_TAG = "md-url"
 
+/** Marks the ranges that should be drawn as inline code chips. */
+const val MD_CODE_TAG = "md-code"
+
 data class InlineColors(
     val text: Color,
     val code: Color,
@@ -70,7 +73,9 @@ private fun AnnotatedString.Builder.appendInline(
                 val end = text.indexOf('`', i + 1)
                 if (end > i + 1) {
                     flush()
+                    val start = length
                     withStyle(inlineCodeStyle(base, colors)) { append(text.substring(i + 1, end)) }
+                    addStringAnnotation(MD_CODE_TAG, "", start, length)
                     i = end + 1
                 } else {
                     plain.append(c)
@@ -179,7 +184,6 @@ private fun inlineCodeStyle(base: SpanStyle, colors: InlineColors): SpanStyle {
     return base.merge(
         SpanStyle(
             color = colors.code,
-            background = colors.codeBackground,
             // An unspecified size cannot be scaled; leave it to inherit instead.
             fontSize = if (size == TextUnit.Unspecified) TextUnit.Unspecified else size * 0.92f,
         ),

@@ -39,14 +39,29 @@ object Space {
 object Radius {
     val xs: Dp = 6.dp
     val sm: Dp = 10.dp
-    val md: Dp = 14.dp
-    val lg: Dp = 20.dp
-    val xl: Dp = 28.dp
+    val md: Dp = 12.dp
+    val lg: Dp = 18.dp
+    val xl: Dp = 24.dp
     val full: Dp = 1000.dp
+
+    /** Session and connection cards. */
+    val card: Dp = 16.dp
+
+    /** Floating composer surface. */
+    val composer: Dp = 20.dp
+
+    /** Text field and search surface. */
+    val field: Dp = 12.dp
+
+    /** A user turn, with its one clipped corner. */
+    val bubble: Dp = 16.dp
+
+    /** Top profile of a modal sheet. */
+    val sheet: Dp = 24.dp
 }
 
 object Size {
-    val topBar: Dp = 56.dp
+    val topBar: Dp = 50.dp
 
     /** Standard touch target. Matches the platform's 48dp minimum. */
     val touch: Dp = 48.dp
@@ -56,14 +71,30 @@ object Size {
      * 48dp would visibly bloat the row. Still well above the point where taps
      * start to miss.
      */
-    val touchSm: Dp = 44.dp
+    val touchSm: Dp = 36.dp
 
     val icon: Dp = 20.dp
-    val iconSm: Dp = 16.dp
+    val iconSm: Dp = 15.dp
+    val iconMd: Dp = 18.dp
     val iconLg: Dp = 24.dp
-    val iconXl: Dp = 32.dp
+    val iconXl: Dp = 28.dp
     val statusDot: Dp = 7.dp
-    val attachment: Dp = 72.dp
+    val attachment: Dp = 56.dp
+
+    /** Leading tile in a session or connection card. */
+    val cardIcon: Dp = 36.dp
+
+    /** The visual send/stop control. */
+    val send: Dp = 38.dp
+
+    /** Brand mark in empty states and grouped surfaces. */
+    val mark: Dp = 28.dp
+
+    /** Standard filled/outlined button. */
+    val button: Dp = 44.dp
+
+    /** Text input and compact search surface. */
+    val input: Dp = 44.dp
 
     /**
      * How tall the composer grows before it starts scrolling internally. Six
@@ -78,10 +109,10 @@ object Size {
      * Circular control in the floating transcript header. Sized so a full row of
      * them reads as one object rather than three separate buttons.
      */
-    val control: Dp = 44.dp
+    val control: Dp = 40.dp
 
-    /** Circular control tucked inside the composer pill. */
-    val controlSm: Dp = 38.dp
+    /** Smallest icon-only control, used inside rows. */
+    val controlSm: Dp = 32.dp
 }
 
 /**
@@ -104,6 +135,9 @@ object Motion {
     const val fast = 120
     const val base = 200
     const val slow = 320
+
+    /** How long a transient confirmation, such as a copied tick, stays visible. */
+    const val confirmation = 2_000L
 
     val standard: Easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
     val emphasized: Easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)

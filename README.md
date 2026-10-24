@@ -19,6 +19,7 @@ EdgeCode brings your OpenCode coding sessions to your Android device. Connect to
 - **Markdown rendering** — Read formatted responses and syntax-highlighted code.
 - **Tool details** — Expand a call to inspect its input and output, and wrap long inputs in place instead of scrolling horizontally.
 - **Demo mode** — Explore the interface using sample data without connecting to a server.
+- **Themes** — A compact monochrome default plus Catppuccin, Tokyo Night, Gruvbox, Nord, Solarized, Rosé Pine, Everforest and One, each with light and dark variants.
 - **Native Android experience** — A focused interface designed specifically for mobile devices.
 
 ## How It Works
@@ -105,6 +106,7 @@ Use [TAD](https://github.com/mhs003/TAD) for debugging and building. It builds t
 2. Build, run, and test:
 
    ```bash
+   tad compile        # fast typecheck, no APK
    tad build debug    # assemble and verify the APK
    tad run            # build, install and launch on this device
    tad test unit      # JVM unit tests

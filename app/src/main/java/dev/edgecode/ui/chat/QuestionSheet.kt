@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.edgecode.core.design.EdgeIcons
 import dev.edgecode.core.design.LocalEdgeColors
+import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
 import dev.edgecode.core.design.Stroke
@@ -75,11 +76,15 @@ fun QuestionCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = Space.md, vertical = Space.sm)
-            .clip(MaterialTheme.shapes.medium)
-            .background(scheme.surfaceContainer)
-            .border(Stroke.hairline, scheme.outlineVariant, MaterialTheme.shapes.medium)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.card))
+            .background(scheme.surfaceContainerLow)
+            .border(
+                Stroke.hairline,
+                scheme.outlineVariant,
+                androidx.compose.foundation.shape.RoundedCornerShape(Radius.card),
+            )
             .testTag(QuestionCardTestTag)
-            .padding(Space.md),
+            .padding(Space.sm + 2.dp),
         verticalArrangement = Arrangement.spacedBy(Space.sm),
     ) {
         Row(
@@ -89,7 +94,7 @@ fun QuestionCard(
             Icon(
                 imageVector = EdgeIcons.Info,
                 contentDescription = null,
-                tint = edge.info,
+                tint = scheme.onSurfaceVariant,
                 modifier = Modifier.size(Size.iconSm),
             )
             Text(
@@ -99,7 +104,7 @@ fun QuestionCard(
                     "${request.questions.size} questions"
                 },
                 style = MaterialTheme.typography.labelMedium,
-                color = edge.info,
+                color = scheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
             Text(
@@ -174,7 +179,7 @@ fun QuestionSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = scheme.surface,
+        containerColor = scheme.background,
         dragHandle = null,
     ) {
         Column(

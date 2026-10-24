@@ -26,15 +26,22 @@ fun IconAction(
     contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    size: Dp = Size.touch,
-    iconSize: Dp = Size.icon,
+    size: Dp = Size.control,
+    iconSize: Dp = Size.iconSm,
     tint: Color = LocalEdgeColors.current.faint,
     enabled: Boolean = true,
+    circled: Boolean = false,
 ) {
     Box(
         modifier = modifier
             .size(size)
-            .clip(MaterialTheme.shapes.extraSmall)
+            .clip(
+                if (circled) {
+                    androidx.compose.foundation.shape.CircleShape
+                } else {
+                    MaterialTheme.shapes.extraSmall
+                },
+            )
             .tappable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

@@ -42,17 +42,21 @@ import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
 
 /**
- * Screen header for the list and settings surfaces.
+ * Screen header.
  *
  * Flat and seamless: it paints the canvas colour and draws no rule, so the
- * content below is separated by space rather than by a line.
+ * content below is separated by space rather than by a line. The optional mark
+ * and badge turn the session list into a product header without adding a second
+ * band of chrome.
  */
 @Composable
 fun EdgeTopBar(
     title: String,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    badge: String? = null,
     onBack: (() -> Unit)? = null,
+    leading: (@Composable () -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -61,25 +65,42 @@ fun EdgeTopBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = Size.topBar)
-                .padding(start = if (onBack != null) Space.xxs else Space.gutter, end = Space.sm),
+                .padding(
+                    start = when {
+                        onBack != null -> Space.md
+                        leading != null -> Space.xxs
+                        else -> Space.gutter
+                    },
+                    end = Space.md,
+                ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (onBack != null) {
-                CircleButton(
+                BarIcon(
                     icon = EdgeIcons.Back,
                     contentDescription = "Back",
                     onClick = onBack,
                 )
+            }
+            if (leading != null) {
+                leading()
                 Spacer(Modifier.width(Space.sm))
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = scheme.onSurface,
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = scheme.onSurface,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (badge != null) {
+                        Spacer(Modifier.width(Space.sm))
+                        Chip(text = badge)
+                    }
+                }
                 if (subtitle != null) {
                     Text(
                         text = subtitle,
@@ -121,11 +142,11 @@ fun EdgeSearchBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = Size.topBar)
-            .padding(horizontal = Space.md, vertical = Space.sm),
+            .height(Size.topBar)
+            .padding(horizontal = Space.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CircleButton(
+        BarIcon(
             icon = EdgeIcons.Back,
             contentDescription = "Close search",
             onClick = onClose,
@@ -134,8 +155,8 @@ fun EdgeSearchBar(
         Row(
             modifier = Modifier
                 .weight(1f)
-                .heightIn(min = Size.control)
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.full))
+                .heightIn(min = Size.input)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.md))
                 .background(scheme.surfaceContainer)
                 .padding(start = Space.lg, end = Space.xs),
             verticalAlignment = Alignment.CenterVertically,
@@ -195,8 +216,8 @@ fun Section(
                 modifier = Modifier.padding(
                     start = Space.gutter,
                     end = Space.gutter,
-                    top = Space.lg,
-                    bottom = Space.sm,
+                    top = Space.md,
+                    bottom = Space.xs,
                 ),
             )
         }
@@ -223,7 +244,7 @@ fun SettingsRow(
         modifier = modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.tappable(onClick = onClick) else Modifier)
-            .padding(horizontal = Space.gutter, vertical = Space.md),
+            .padding(horizontal = Space.gutter, vertical = Space.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
@@ -394,13 +415,13 @@ fun SheetHeader(
     val scheme = MaterialTheme.colorScheme
     Column(modifier = modifier.fillMaxWidth()) {
         Box(
-            modifier = Modifier.fillMaxWidth().padding(top = Space.md, bottom = Space.md),
+            modifier = Modifier.fillMaxWidth().padding(top = Space.sm, bottom = Space.sm),
             contentAlignment = Alignment.Center,
         ) {
             Box(
                 modifier = Modifier
-                    .width(36.dp)
-                    .height(4.dp)
+                    .width(32.dp)
+                    .height(3.dp)
                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.full))
                     .background(scheme.outline),
             )
@@ -408,7 +429,7 @@ fun SheetHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = Space.gutter, end = Space.sm, bottom = Space.sm),
+                .padding(start = Space.gutter, end = Space.sm, bottom = Space.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -426,7 +447,7 @@ fun SheetHeader(
                 }
             }
             if (onClose != null) {
-                IconAction(
+                BarIcon(
                     icon = EdgeIcons.Close,
                     contentDescription = "Close",
                     onClick = onClose,

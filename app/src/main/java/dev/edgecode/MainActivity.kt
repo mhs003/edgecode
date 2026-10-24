@@ -24,7 +24,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.graphics.toArgb
 import dev.edgecode.core.design.EdgeTheme
+import dev.edgecode.core.design.paletteFor
 import dev.edgecode.core.design.Motion
 import dev.edgecode.core.design.isDark
 import dev.edgecode.data.ConnectionsStore
@@ -69,14 +71,11 @@ class MainActivity : ComponentActivity() {
         // Paint the right background before the first Compose frame. Without
         // this a light-theme start flashes the dark window background and vice
         // versa, because the window background comes from the XML theme.
-        val startDark = settingsStore.state.value.themeMode.isDark(this)
+        val startSettings = settingsStore.state.value
+        val startDark = startSettings.themeMode.isDark(this)
         window.setBackgroundDrawable(
             ColorDrawable(
-                ContextCompat.getColor(
-                    this,
-                    if (startDark) R.color.window_background_dark
-                    else R.color.window_background_light,
-                ),
+                paletteFor(startSettings.themeFamily, startDark).background.toArgb(),
             ),
         )
 
@@ -94,7 +93,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            EdgeTheme(themeMode = settings.themeMode) {
+            EdgeTheme(
+                themeMode = settings.themeMode,
+                themeFamily = settings.themeFamily,
+            ) {
                 EdgeApp(viewModel, notifications)
             }
         }

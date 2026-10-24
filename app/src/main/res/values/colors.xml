@@ -6,6 +6,6 @@
       Theme.kt's DarkBackground / LightBackground so a cold start does not flash
       the opposite theme before the UI appears.
     -->
-    <color name="window_background_dark">#FF0F1216</color>
-    <color name="window_background_light">#FFFAFBFC</color>
+    <color name="window_background_dark">#FF0D0D0D</color>
+    <color name="window_background_light">#FFF8F6F6</color>
 </resources>

@@ -29,12 +29,12 @@ remote control for it:
 - **Model & agent control** — pick a model per chat, switch agents.
 - **Subagents** — inspect sessions spawned by a `task` call, read-only.
 - **Attachments** — pick files into a prompt.
-- **Settings** — dark (default), light and system themes; reasoning, tool and
-  send preferences.
+- **Settings** — System/light/dark mode plus nine theme families (default Edge,
+  Catppuccin and more); reasoning, tool and send preferences.
 - **Demo mode** — `demo://` drives the whole interface without a server.
 
-`DESIGN.md` is the binding visual standard: balanced minimalism, quiet
-sophistication, adaptive density, subtle surfaces, no card-per-section.
+`DESIGN.md` is the binding visual standard: compact monochrome, theme families,
+floating chat chrome, small tonal surfaces, no card-per-section.
 
 ---
 

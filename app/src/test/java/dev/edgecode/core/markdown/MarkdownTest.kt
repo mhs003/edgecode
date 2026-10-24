@@ -1,5 +1,6 @@
 package dev.edgecode.core.markdown
 
+import androidx.compose.ui.graphics.Color
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -77,5 +78,19 @@ class MarkdownTest {
         val blocks = Markdown.parse("line one\nline two\n\nsecond")
         assertEquals(2, blocks.size)
         assertEquals("line one\nline two", (blocks[0] as MdBlock.Paragraph).text)
+    }
+
+    @Test
+    fun `marks inline code ranges for the chip background`() {
+        val colors = InlineColors(
+            text = Color.Black,
+            code = Color.Black,
+            codeBackground = Color.LightGray,
+            link = Color.Blue,
+        )
+        val rendered = renderInline("use `val x = 1` here", colors)
+        val ranges = rendered.getStringAnnotations(MD_CODE_TAG, 0, rendered.length)
+        assertEquals(1, ranges.size)
+        assertEquals("val x = 1", rendered.text.substring(ranges.single().start, ranges.single().end))
     }
 }

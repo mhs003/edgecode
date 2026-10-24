@@ -2,6 +2,7 @@ package dev.edgecode.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import dev.edgecode.core.design.ThemeFamily
 import dev.edgecode.core.design.ThemeMode
 import dev.edgecode.core.model.AgentInfo
 import dev.edgecode.core.model.Attachment
@@ -87,6 +88,7 @@ class AppViewModel(
     val reconnecting: StateFlow<Boolean> = _reconnecting.asStateFlow()
 
     val themeMode: ThemeMode get() = settings.state.value.themeMode
+    val themeFamily: ThemeFamily get() = settings.state.value.themeFamily
 
     init {
         val saved = settings.state.value
@@ -474,6 +476,8 @@ class AppViewModel(
     // --- Settings ----------------------------------------------------------
 
     fun setTheme(mode: ThemeMode) = settings.setTheme(mode)
+
+    fun setThemeFamily(family: ThemeFamily) = settings.setThemeFamily(family)
 
     fun setShowReasoning(value: Boolean) = settings.setShowReasoning(value)
 

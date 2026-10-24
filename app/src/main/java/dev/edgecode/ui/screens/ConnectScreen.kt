@@ -1,10 +1,15 @@
 package dev.edgecode.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import dev.edgecode.core.design.Radius
+import dev.edgecode.core.design.components.ConfirmDialog
+import dev.edgecode.core.design.components.BarIcon
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,8 +19,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +43,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import dev.edgecode.core.design.EdgeIcons
 import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Size
@@ -46,6 +52,7 @@ import dev.edgecode.core.design.Stroke
 import dev.edgecode.core.design.components.ActionSheet
 import dev.edgecode.core.design.components.EdgeButton
 import dev.edgecode.core.design.components.EdgeSecondaryButton
+import dev.edgecode.core.design.components.EdgeSwitch
 import dev.edgecode.core.design.components.EdgeTextField
 import dev.edgecode.core.design.components.EdgeTopBar
 import dev.edgecode.core.design.components.ErrorNotice
@@ -165,7 +172,7 @@ fun ConnectScreen(
                 Section(title = "New connection") {
                     Column(
                         modifier = Modifier.padding(horizontal = Space.gutter),
-                        verticalArrangement = Arrangement.spacedBy(Space.lg),
+                        verticalArrangement = Arrangement.spacedBy(Space.md),
                     ) {
                         EdgeTextField(
                             value = name,
@@ -257,15 +264,10 @@ fun ConnectScreen(
                 }
             }
 
-            Spacer(Modifier.height(Space.lg))
-
-            HorizontalDivider(
-                modifier = Modifier.padding(horizontal = Space.gutter),
-                color = scheme.outlineVariant,
-            )
+            Spacer(Modifier.height(Space.sm))
 
             Column(
-                modifier = Modifier.padding(horizontal = Space.gutter, vertical = Space.lg),
+                modifier = Modifier.padding(horizontal = Space.gutter, vertical = Space.md),
                 verticalArrangement = Arrangement.spacedBy(Space.sm),
             ) {
                 EdgeSecondaryButton(
@@ -289,7 +291,7 @@ fun ConnectScreen(
     }
 
     prompting?.let { target ->
-        PasswordPrompt(
+        PasswordSheet(
             connection = target,
             onDismiss = { prompting = null },
             onConfirm = { entered ->
@@ -300,8 +302,11 @@ fun ConnectScreen(
     }
 
     removing?.let { target ->
-        RemoveDialog(
-            connection = target,
+        ConfirmDialog(
+            title = "Remove server?",
+            message = "\"${target.name}\" will be removed from this list. Any password for it is already memory-only and is forgotten.",
+            confirmLabel = "Remove",
+            destructive = true,
             onDismiss = { removing = null },
             onConfirm = {
                 removing = null
@@ -361,14 +366,32 @@ private fun SavedRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = Space.gutter, vertical = Space.xs)
+            .clip(RoundedCornerShape(Radius.card))
+            .background(scheme.surfaceContainerLow)
             .tappable(enabled = enabled, onClick = onConnect)
-            .padding(start = Space.gutter, end = Space.xxs, top = Space.md, bottom = Space.md),
+            .padding(start = Space.sm + 2.dp, end = Space.xxs, top = Space.sm, bottom = Space.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Box(
+            modifier = Modifier
+                .size(Size.cardIcon)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(scheme.surfaceContainerHigh),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = EdgeIcons.Server,
+                contentDescription = null,
+                tint = scheme.onSurfaceVariant,
+                modifier = Modifier.size(Size.icon),
+            )
+        }
+        Spacer(Modifier.width(Space.sm + 2.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = connection.name,
-                style = MaterialTheme.typography.bodyLarge,
+                text = connection.name.takeIf { it != connection.url } ?: "Saved server",
+                style = MaterialTheme.typography.titleSmall,
                 color = scheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -376,29 +399,27 @@ private fun SavedRow(
             Spacer(Modifier.height(Space.xxs))
             Text(
                 text = connection.url,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.bodySmall,
                 color = edge.faint,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(Space.xxs))
+            Spacer(Modifier.height(Space.xs))
             val status = connection.lastStatus
-            if (connecting) {
-                Text(
+            when {
+                connecting -> Text(
                     text = "Connecting…",
                     style = MaterialTheme.typography.labelSmall,
-                    color = scheme.primary,
+                    color = scheme.onSurfaceVariant,
                 )
-            } else if (status != null) {
-                Text(
+                status != null -> Text(
                     text = status,
                     style = MaterialTheme.typography.labelSmall,
-                    color = edge.warning,
+                    color = scheme.error,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-            } else if (connection.lastUsedAt > 0L) {
-                Text(
+                connection.lastUsedAt > 0L -> Text(
                     text = formatRelative(connection.lastUsedAt),
                     style = MaterialTheme.typography.labelSmall,
                     color = edge.faint,
@@ -411,7 +432,7 @@ private fun SavedRow(
                 modifier = Modifier
                     .padding(horizontal = Space.md)
                     .size(Size.iconSm),
-                color = scheme.primary,
+                color = scheme.onSurface,
                 strokeWidth = Stroke.thin,
             )
         } else {
@@ -419,8 +440,9 @@ private fun SavedRow(
                 icon = EdgeIcons.More,
                 contentDescription = "Connection actions",
                 onClick = onActions,
-                size = Size.touchSm,
+                size = Size.controlSm,
                 iconSize = Size.iconSm,
+                circled = true,
             )
         }
     }
@@ -464,7 +486,7 @@ private fun EditConnectionSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = scheme.surface,
+        containerColor = scheme.background,
         dragHandle = null,
     ) {
         Column(modifier = Modifier.padding(bottom = Space.xl)) {
@@ -565,49 +587,46 @@ private fun SaveToggle(checked: Boolean, onToggle: () -> Unit) {
             )
         }
         Spacer(Modifier.width(Space.sm))
-        Switch(
+        EdgeSwitch(
             checked = checked,
             onCheckedChange = { onToggle() },
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = scheme.onPrimary,
-                checkedTrackColor = scheme.primary,
-                uncheckedThumbColor = edge.faint,
-                uncheckedTrackColor = scheme.surfaceContainerHigh,
-                uncheckedBorderColor = scheme.outline,
-            ),
         )
     }
 }
 
 /** Asks for the password a saved server needs; it is never written to disk. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PasswordPrompt(
+private fun PasswordSheet(
     connection: SavedConnection,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     val edge = LocalEdgeColors.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var value by remember { mutableStateOf("") }
     var visible by remember { mutableStateOf(false) }
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = scheme.surfaceContainerHigh,
-        shape = MaterialTheme.shapes.large,
-        title = {
-            Text(
-                text = connection.name,
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+        sheetState = sheetState,
+        containerColor = scheme.background,
+        dragHandle = null,
+    ) {
+        Column(modifier = Modifier.padding(bottom = Space.xl)) {
+            SheetHeader(
+                title = connection.name,
+                subtitle = "This server needs a password",
+                onClose = onDismiss,
             )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Space.md)) {
+            Column(
+                modifier = Modifier.padding(horizontal = Space.gutter),
+                verticalArrangement = Arrangement.spacedBy(Space.lg),
+            ) {
                 Text(
-                    text = "This server needs a password. It is kept in memory for " +
-                        "this session and never saved to the device.",
+                    text = "The password is kept in memory for this session and never " +
+                        "saved to the device.",
                     style = MaterialTheme.typography.bodySmall,
                     color = edge.faint,
                 )
@@ -630,49 +649,15 @@ private fun PasswordPrompt(
                         )
                     },
                 )
+                EdgeButton(
+                    text = "Connect",
+                    onClick = { onConfirm(value) },
+                    enabled = value.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(value) },
-                enabled = value.isNotBlank(),
-            ) { Text("Connect") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
-}
-
-@Composable
-private fun RemoveDialog(
-    connection: SavedConnection,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-) {
-    val scheme = MaterialTheme.colorScheme
-    val edge = LocalEdgeColors.current
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = scheme.surfaceContainerHigh,
-        shape = MaterialTheme.shapes.large,
-        title = { Text("Remove server?", style = MaterialTheme.typography.titleLarge) },
-        text = {
-            Text(
-                text = "\"${connection.name}\" will be removed from this list. " +
-                    "Any password for it is already memory-only and is forgotten.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = edge.faint,
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) { Text("Remove", color = scheme.error) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
+        }
+    }
 }
 
 private val SavedConnection.needsPassword: Boolean

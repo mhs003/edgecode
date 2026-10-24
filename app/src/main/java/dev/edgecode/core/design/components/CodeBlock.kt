@@ -5,6 +5,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import dev.edgecode.core.design.Radius
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -36,8 +39,8 @@ import dev.edgecode.core.util.rememberCopyAction
  *
  * Chrome is one quiet header line — language left, copy right — because the code
  * is the content and the frame should not compete with it. Long blocks collapse
- * instead of pushing the conversation off screen, and lines never wrap: wrapped
- * code is much harder to read than a horizontal scroll.
+ * instead of pushing the conversation off screen. Lines scroll by default;
+ * wrapping stays available beside copy for prose-like output.
  */
 @Composable
 fun CodeBlock(
@@ -45,7 +48,6 @@ fun CodeBlock(
     language: String? = null,
     modifier: Modifier = Modifier,
     maxLines: Int = 22,
-    showWrapToggle: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
     val edge = LocalEdgeColors.current
@@ -72,14 +74,13 @@ fun CodeBlock(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(MaterialTheme.shapes.small)
-            .background(edge.subtleFill)
-            .border(Stroke.hairline, scheme.outlineVariant, MaterialTheme.shapes.small),
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.md))
+            .background(scheme.surfaceContainer),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = Space.md, end = Space.xxs, top = Space.xxs),
+                .padding(start = Space.md, end = Space.xxs, top = Space.xxs, bottom = Space.xxs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -90,22 +91,18 @@ fun CodeBlock(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            if (showWrapToggle) {
-                IconAction(
-                    icon = EdgeIcons.Wrap,
-                    contentDescription = if (wrapped) "Unwrap lines" else "Wrap lines",
-                    onClick = { wrapped = !wrapped },
-                    size = Size.touchSm,
-                    iconSize = Size.iconSm,
-                    tint = if (wrapped) scheme.primary else edge.faint,
-                )
-            }
             IconAction(
-                icon = EdgeIcons.Copy,
+                icon = EdgeIcons.Wrap,
+                contentDescription = if (wrapped) "Unwrap lines" else "Wrap lines",
+                onClick = { wrapped = !wrapped },
+                size = Size.controlSm,
+                iconSize = Size.iconSm,
+                tint = if (wrapped) scheme.primary else edge.faint,
+            )
+            CopyButton(
+                copied = copy.copied,
                 contentDescription = "Copy code",
                 onClick = { copy("code", code) },
-                size = Size.touchSm,
-                iconSize = Size.iconSm,
             )
         }
 
@@ -113,7 +110,7 @@ fun CodeBlock(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (wrapped) Modifier else Modifier.horizontalScroll(scroll))
-                .padding(horizontal = Space.md, vertical = Space.xs),
+                .padding(start = Space.md, end = Space.md, top = Space.sm, bottom = Space.md),
         ) {
             Text(
                 text = highlighted,
@@ -122,16 +119,29 @@ fun CodeBlock(
             )
         }
 
-        if (overflows && !expanded) {
-            Text(
-                text = "Show all ${lines.size} lines",
-                style = MaterialTheme.typography.labelMedium,
-                color = scheme.primary,
+        if (overflows) {
+            Box(
                 modifier = Modifier
-                    .padding(start = Space.md, end = Space.md, bottom = Space.sm, top = Space.xxs)
-                    .clip(MaterialTheme.shapes.extraSmall)
-                    .tappable { expanded = true },
-            )
+                    .fillMaxWidth()
+                    .padding(bottom = Space.sm),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(Size.controlSm)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.full))
+                        .background(scheme.surfaceContainerHigh)
+                        .tappable { expanded = !expanded },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = if (expanded) EdgeIcons.ChevronUp else EdgeIcons.ChevronDown,
+                        contentDescription = if (expanded) "Collapse code" else "Show all ${lines.size} lines",
+                        tint = scheme.onSurfaceVariant,
+                        modifier = Modifier.size(Size.iconSm),
+                    )
+                }
+            }
         }
     }
 }

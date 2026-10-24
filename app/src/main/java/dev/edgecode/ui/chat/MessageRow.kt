@@ -6,6 +6,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,17 +35,18 @@ import androidx.compose.ui.unit.dp
 import dev.edgecode.core.design.EdgeIcons
 import dev.edgecode.core.design.LocalEdgeColors
 import dev.edgecode.core.design.Motion
+import dev.edgecode.core.design.EdgeText
 import dev.edgecode.core.design.Radius
 import dev.edgecode.core.design.Size
 import dev.edgecode.core.design.Space
+import dev.edgecode.core.design.Stroke
+import dev.edgecode.core.design.components.CopyButton
 import dev.edgecode.core.design.components.ErrorNotice
-import dev.edgecode.core.design.components.IconAction
 import dev.edgecode.core.design.components.MarkdownText
 import dev.edgecode.core.model.Attachment
 import dev.edgecode.core.model.AttachmentKind
 import dev.edgecode.core.model.ChatMessage
 import dev.edgecode.core.model.Part
-import dev.edgecode.core.util.formatResponseMeta
 import dev.edgecode.core.util.rememberCopyAction
 
 /**
@@ -61,7 +63,6 @@ fun MessageRow(
     modifier: Modifier = Modifier,
     showReasoning: Boolean = true,
     expandTools: Boolean = false,
-    modelLabel: String? = null,
     onOpenSubagent: ((String) -> Unit)? = null,
 ) {
     when (message) {
@@ -71,7 +72,6 @@ fun MessageRow(
             modifier = modifier,
             showReasoning = showReasoning,
             expandTools = expandTools,
-            modelLabel = modelLabel,
             onOpenSubagent = onOpenSubagent,
         )
     }
@@ -99,13 +99,31 @@ private fun UserMessageRow(message: ChatMessage.User, modifier: Modifier = Modif
             if (message.text.isNotBlank()) {
                 Column(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(Radius.lg))
-                        .background(scheme.surfaceContainer)
-                        .padding(horizontal = Space.lg, vertical = Space.md),
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = Radius.bubble,
+                                topEnd = Radius.bubble,
+                                bottomStart = Radius.bubble,
+                                bottomEnd = Radius.xs,
+                            ),
+                        )
+                        .background(scheme.surfaceContainerHigh)
+                        .border(
+                            Stroke.hairline,
+                            scheme.outlineVariant,
+                            RoundedCornerShape(
+                                topStart = Radius.bubble,
+                                topEnd = Radius.bubble,
+                                bottomStart = Radius.bubble,
+                                bottomEnd = Radius.xs,
+                            ),
+                        )
+                        .padding(horizontal = Space.md + 2.dp, vertical = Space.sm + 2.dp),
                 ) {
                     MarkdownText(
                         text = message.text,
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = EdgeText.chat,
+                        fillWidth = false,
                     )
                 }
             }
@@ -119,7 +137,6 @@ private fun AssistantMessageRow(
     modifier: Modifier = Modifier,
     showReasoning: Boolean,
     expandTools: Boolean,
-    modelLabel: String?,
     onOpenSubagent: ((String) -> Unit)? = null,
 ) {
     val edge = LocalEdgeColors.current
@@ -151,45 +168,16 @@ private fun AssistantMessageRow(
         // model served it, how much it produced, how fast. Cost stays a session
         // figure, and everything else that describes the session belongs in the
         // menu rather than repeated under every turn.
-        if (!message.streaming) {
-            val meta = formatResponseMeta(
-                model = modelLabel,
-                outputTokens = message.tokens.output,
-                startedAt = message.createdAt,
-                completedAt = message.completedAt,
+        if (!message.streaming && plainText.isNotBlank()) {
+            CopyButton(
+                copied = copy.copied,
+                contentDescription = "Copy reply",
+                onClick = { copy("reply", plainText) },
+                // Pulled left by half the difference between the touch target
+                // and the glyph, so the icon optically lines up with the text
+                // it belongs to rather than with its own padding.
+                modifier = Modifier.offset(x = -(Size.controlSm - Size.iconSm) / 2),
             )
-            if (plainText.isNotBlank() || meta != null) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Space.xs),
-                ) {
-                    if (plainText.isNotBlank()) {
-                        IconAction(
-                            icon = EdgeIcons.Copy,
-                            contentDescription = "Copy reply",
-                            onClick = { copy("reply", plainText) },
-                            size = Size.touchSm,
-                            iconSize = Size.iconSm,
-                            tint = edge.faint,
-                            // Pulled left by half the difference between the
-                            // touch target and the glyph, so the icon optically
-                            // lines up with the text it belongs to rather than
-                            // with its own padding.
-                            modifier = Modifier.offset(x = -(Size.touchSm - Size.iconSm) / 2),
-                        )
-                    }
-                    if (meta != null) {
-                        Text(
-                            text = meta,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = edge.faint,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                    }
-                }
-            }
         }
     }
 }

@@ -26,58 +26,10 @@ import androidx.core.view.WindowCompat
 /*
  * Colour
  * ======
- * A neutral base carries the interface; a single restrained accent marks
- * interactive and selected states. Semantic colours (success/warning/error and
- * diff add/remove) are kept off the accent hue so status never reads as brand.
- *
- * The palette is desaturated on purpose. The interface should still feel
- * designed with the accent removed — accent is emphasis, not identity.
- */
-
-private val DarkBackground = Color(0xFF0A0B0C)
-private val DarkSurface = Color(0xFF0A0B0C)
-private val DarkSurfaceContainerLow = Color(0xFF151619)
-private val DarkSurfaceContainer = Color(0xFF26282C)
-private val DarkSurfaceContainerHigh = Color(0xFF35383E)
-private val DarkOutline = Color(0xFF2A2D31)
-private val DarkOutlineVariant = Color(0xFF16181A)
-private val DarkOnSurface = Color(0xFFEDEEF0)
-private val DarkOnSurfaceVariant = Color(0xFFA6AAB0)
-
-/**
- * The tertiary text tier: timestamps, paths, token counts, section labels.
- * Chosen to clear 4.5:1 against the background *and* against the tonal fill that
- * code blocks and user turns use, rather than merely to look recessive — it
- * carries real information, so it has to be legible.
- */
-private val DarkFaint = Color(0xFF8C9198)
-private val DarkPrimary = Color(0xFF4FB8AE)
-private val DarkOnPrimary = Color(0xFF062220)
-private val DarkPrimaryContainer = Color(0xFF16302E)
-private val DarkOnPrimaryContainer = Color(0xFFA6E4DD)
-private val DarkSecondary = Color(0xFF8A93A2)
-
-private val LightBackground = Color(0xFFFFFFFF)
-private val LightSurface = Color(0xFFFFFFFF)
-private val LightSurfaceContainerLow = Color(0xFFF7F8F9)
-private val LightSurfaceContainer = Color(0xFFF0F1F3)
-private val LightSurfaceContainerHigh = Color(0xFFE6E8EB)
-private val LightOutline = Color(0xFFE2E4E8)
-private val LightOutlineVariant = Color(0xFFEDEEF0)
-private val LightOnSurface = Color(0xFF0E1114)
-private val LightOnSurfaceVariant = Color(0xFF5B6167)
-
-/** See DarkFaint — held to the same 4.5:1 floor. */
-private val LightFaint = Color(0xFF666C73)
-private val LightPrimary = Color(0xFF0F6E67)
-private val LightOnPrimary = Color(0xFFFFFFFF)
-private val LightPrimaryContainer = Color(0xFFD6EDEA)
-private val LightOnPrimaryContainer = Color(0xFF042A27)
-private val LightSecondary = Color(0xFF5E6671)
-
-/**
- * Colours the Material scheme has no slot for. Kept in one object so they are
- * defined once and consumed through [LocalEdgeColors].
+ * The default family is deliberately monochrome: a warm canvas, a small set of
+ * tonal fills, and text that carries every hierarchy cue. Optional families
+ * replace the neutral and accent anchors while keeping the same semantic roles,
+ * so layout and contrast behave identically whichever palette is selected.
  */
 @Immutable
 data class EdgeColors(
@@ -89,84 +41,18 @@ data class EdgeColors(
     val diffRemove: Color,
     val diffAddBg: Color,
     val diffRemoveBg: Color,
-    /** Tonal fill for user turns and inline code. */
+    /** Tonal fill for code and other inset surfaces. */
     val subtleFill: Color,
     val isDark: Boolean,
 )
 
-internal val DarkColors = EdgeColors(
-    success = Color(0xFF5FB07C),
-    warning = Color(0xFFD9A03F),
-    info = Color(0xFF6C9EDC),
-    faint = DarkFaint,
-    diffAdd = Color(0xFF5FB07C),
-    diffRemove = Color(0xFFDC6F68),
-    diffAddBg = Color(0x1F5FB07C),
-    diffRemoveBg = Color(0x1FDC6F68),
-    subtleFill = Color(0xFF26282C),
-    isDark = true,
-)
-
-internal val LightColors = EdgeColors(
-    success = Color(0xFF2E7D4F),
-    warning = Color(0xFF8A5D0A),
-    info = Color(0xFF2F6BB0),
-    faint = LightFaint,
-    diffAdd = Color(0xFF2E7D4F),
-    diffRemove = Color(0xFFB3403A),
-    diffAddBg = Color(0x1A2E7D4F),
-    diffRemoveBg = Color(0x1AB3403A),
-    // Matches the tonal fill for user turns and inline code.
-    subtleFill = Color(0xFFF0F1F3),
-    isDark = false,
-)
+internal val DarkColors: EdgeColors = EdgePalette.edge(dark = true).colors()
+internal val LightColors: EdgeColors = EdgePalette.edge(dark = false).colors()
 
 val LocalEdgeColors = staticCompositionLocalOf { DarkColors }
 
-internal val DarkScheme = darkColorScheme(
-    primary = DarkPrimary,
-    onPrimary = DarkOnPrimary,
-    primaryContainer = DarkPrimaryContainer,
-    onPrimaryContainer = DarkOnPrimaryContainer,
-    secondary = DarkSecondary,
-    onSecondary = DarkOnPrimary,
-    surface = DarkSurface,
-    onSurface = DarkOnSurface,
-    onSurfaceVariant = DarkOnSurfaceVariant,
-    surfaceVariant = DarkSurfaceContainer,
-    onError = Color(0xFF2B0E0C),
-    background = DarkBackground,
-    onBackground = DarkOnSurface,
-    outline = DarkOutline,
-    outlineVariant = DarkOutlineVariant,
-    surfaceContainerLowest = DarkBackground,
-    surfaceContainerLow = DarkSurfaceContainerLow,
-    surfaceContainer = DarkSurfaceContainer,
-    surfaceContainerHigh = DarkSurfaceContainerHigh,
-    surfaceContainerHighest = DarkSurfaceContainerHigh,
-)
-
-internal val LightScheme = lightColorScheme(
-    primary = LightPrimary,
-    onPrimary = LightOnPrimary,
-    primaryContainer = LightPrimaryContainer,
-    onPrimaryContainer = LightOnPrimaryContainer,
-    secondary = LightSecondary,
-    onSecondary = Color.White,
-    surface = LightSurface,
-    onSurface = LightOnSurface,
-    onSurfaceVariant = LightOnSurfaceVariant,
-    surfaceVariant = LightSurfaceContainer,
-    background = LightBackground,
-    onBackground = LightOnSurface,
-    outline = LightOutline,
-    outlineVariant = LightOutlineVariant,
-    surfaceContainerLowest = Color.White,
-    surfaceContainerLow = LightSurfaceContainerLow,
-    surfaceContainer = LightSurfaceContainer,
-    surfaceContainerHigh = LightSurfaceContainerHigh,
-    surfaceContainerHighest = LightSurfaceContainerHigh,
-)
+internal val DarkScheme = EdgePalette.edge(dark = true).scheme()
+internal val LightScheme = EdgePalette.edge(dark = false).scheme()
 
 /*
  * Typography
@@ -196,22 +82,24 @@ fun monoStyle(
 ) = edgeStyle(size.toFloat(), lineHeight.toFloat(), weight)
 
 val EdgeTypography = Typography(
-    displaySmall = edgeStyle(28f, 34f, FontWeight.SemiBold),
-    headlineMedium = edgeStyle(22f, 28f, FontWeight.SemiBold),
-    headlineSmall = edgeStyle(19f, 25f, FontWeight.Medium),
+    displaySmall = edgeStyle(26f, 32f, FontWeight.SemiBold),
+    headlineMedium = edgeStyle(20f, 26f, FontWeight.Medium),
+    headlineSmall = edgeStyle(17f, 23f, FontWeight.Medium),
     titleLarge = edgeStyle(17f, 23f, FontWeight.Medium),
     titleMedium = edgeStyle(15f, 21f, FontWeight.Medium),
     titleSmall = edgeStyle(13f, 18f, FontWeight.Medium),
-    bodyLarge = edgeStyle(16f, 25f),
-    bodyMedium = edgeStyle(14f, 21f),
-    bodySmall = edgeStyle(12.5f, 18f),
-    labelLarge = edgeStyle(14f, 19f, FontWeight.Medium),
-    labelMedium = edgeStyle(12f, 16f, FontWeight.Medium),
-    labelSmall = edgeStyle(11f, 15f, FontWeight.Medium),
+    bodyLarge = edgeStyle(14f, 21f),
+    bodyMedium = edgeStyle(13f, 20f),
+    bodySmall = edgeStyle(12f, 18f),
+    labelLarge = edgeStyle(13f, 18f, FontWeight.Medium),
+    labelMedium = edgeStyle(11f, 15f, FontWeight.Medium),
+    labelSmall = edgeStyle(10f, 14f, FontWeight.Medium),
 )
 
 /** Extended text styles that sit outside the Material scale. */
 object EdgeText {
+    val chat = monoStyle(size = 14, lineHeight = 22)
+    val composer = monoStyle(size = 13, lineHeight = 20)
     val code = monoStyle()
     val codeSmall = monoStyle(size = 12, lineHeight = 18)
     val meta = monoStyle(size = 12, lineHeight = 16)
@@ -232,7 +120,8 @@ val EdgeShapes = Shapes(
 
 @Composable
 fun EdgeTheme(
-    themeMode: ThemeMode = ThemeMode.Dark,
+    themeMode: ThemeMode = ThemeMode.System,
+    themeFamily: ThemeFamily = ThemeFamily.Edge,
     content: @Composable () -> Unit,
 ) {
     val dark = when (themeMode) {
@@ -256,9 +145,10 @@ fun EdgeTheme(
         }
     }
 
-    CompositionLocalProvider(LocalEdgeColors provides if (dark) DarkColors else LightColors) {
+    val palette = paletteFor(themeFamily, dark)
+    CompositionLocalProvider(LocalEdgeColors provides palette.colors()) {
         MaterialTheme(
-            colorScheme = if (dark) DarkScheme else LightScheme,
+            colorScheme = palette.scheme(),
             typography = EdgeTypography,
             shapes = EdgeShapes,
             content = content,
@@ -288,4 +178,4 @@ fun ThemeMode.isDark(context: Context): Boolean = when (this) {
             Configuration.UI_MODE_NIGHT_YES
 }
 
-enum class ThemeMode { Dark, Light, System }
+enum class ThemeMode { System, Light, Dark }

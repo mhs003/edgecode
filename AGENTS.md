@@ -118,36 +118,53 @@ app/src/main/java/dev/edgecode/
 
 ## Design language
 
-Current chat clients render one canvas with one fill. Match that.
+The default is compact monochrome. Optional theme families change the palette,
+never the layout. Match that.
 
-- **One fill, not a ladder.** `background == surface` is the canvas;
-  `surfaceContainer` is *the* fill (composer, user turns, control circles);
-  `surfaceContainerHigh` is the pressed/inset step. Do not introduce a fourth
-  tone, and do not tune the existing ones to sit closer together — the flatness
-  is the point.
-- **Nothing is outlined and nothing is divided.** No resting borders on inputs,
-  no separators in lists, no rules under headers. Separate with space.
-- **Chat has no app bar.** A floating row of circular controls sits over the
-  transcript and a floating composer pill sits below it; both paint the canvas
-  colour so content disappears into them rather than sliding under a band.
+- **Compact before spacious.** Chat body is `14/22`; app-bar icons are bare 40dp
+  controls; buttons are 44dp; cards use 8–10dp padding. Do not inflate controls
+  to Material's default footprint.
+- **One canvas, a small tonal set.** `background == surface` is the canvas;
+  `surfaceContainerLow` is the object/composer fill; `surfaceContainerHigh` is
+  the selected/inset step. Cards belong to sessions, saved servers and grouped
+  choices, not to every section.
+- **Chat has floating chrome.** A row of bare icon controls floats over a
+  gradient scrim at the top; the composer floats over a mirrored scrim at the
+  bottom. Both reserve their height in the transcript. Do not replace this with
+  a static app bar.
 - **Assistant turns are bare text.** No bubble, no container, no meta footer. A
-  settled turn shows one action (copy). Anything that describes the session as a
-  whole belongs in the overflow menu.
-- **Circular controls come from `CircleButton`.** Do not hand-roll a
-  `Box` + `clip` + `background` circle.
-- **Overflow actions are sheets.** A three-dot control opens `ActionSheet` at
-  thumb height with the thing it applies to in the header. Do not reach for a
-  `DropdownMenu`.
+  settled turn shows one action (copy). Session statistics belong in the
+  overflow menu.
+- **User turns are compact tonal bubbles** with a hairline and a 16/6 radius.
+  Do not make a short prompt fill the width.
+- **Controls look like their action.** Use `BarIcon` for app-bar actions;
+  `CircleButton` only for genuinely filled circular actions such as send.
+  Touch feedback is a short tonal overlay inside the control's shape; there is
+  no ripple. The visible shape is the hit target.
+- **Typography comes from `EdgeTypography` and `EdgeText`.** Fira Code and the
+  `calt`/`liga` feature string live only in `core/design/Fonts.kt`; feature code
+  sets neither `fontFamily` nor `fontFeatureSettings`. Tracking stays `0`.
+- **Colour comes from the palette.** The default Edge family is monochrome;
+  themed families use their accent roles. No hex values or new accent tones in
+  feature code. All families live in `core/design/Themes.kt`.
+- **Every theme stays legible.** `ContrastTest` checks every family and variant,
+  not only Edge. Run it after any palette or token change.
+- **Components come from `core/design/components`.** Extend them rather than
+  styling a Material component inline. Replace stock dialogs, switches and
+  chips when their default surface conflicts with the palette.
+- **Overflow actions are sheets.** A three-dot control opens `ActionSheet` with
+  the session, server or connection in its header. Do not use `DropdownMenu`.
 - **New and saved connections share the same fields and Test/Connect
   behavior.** Test checks health without connecting or saving; Connect/Save
   persists only after the check succeeds. Passwords stay memory-only.
 - **Every inset has one owner per screen.** They are additive; two owners means
   content pushed off the window with the keyboard open.
 - **At most one `weight`ed child per `Row`.** Unweighted siblings measure first
-  and the last one absorbs any overflow, which is how a status label once
-  rendered one character per line down the screen edge.
+  and the last one absorbs any overflow.
 - **Text clears 4.5:1** against the surface it sits on, canvas *and* tonal fill.
   `ContrastTest` enforces this; run it after any palette change.
+- **No source-project references, assets or branding.** Design notes describe
+  the product's own decisions.
 
 ## Conventions
 
